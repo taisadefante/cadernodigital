@@ -8,7 +8,6 @@ import {
 } from "react";
 
 import type {
-  Category,
   Note,
   NoteFormData,
   NotePriority,
@@ -19,7 +18,26 @@ import type {
 type ManagerItem = {
   id: string;
   name: string;
+  color?: string;
 };
+
+const DEFAULT_TAG_COLOR = "#64748b";
+
+function safeColor(value?: string): string {
+  return /^#[0-9a-f]{6}$/i.test(value || "")
+    ? String(value)
+    : DEFAULT_TAG_COLOR;
+}
+
+function contrastText(hex: string): string {
+  const clean = safeColor(hex).slice(1);
+  const r = Number.parseInt(clean.slice(0, 2), 16);
+  const g = Number.parseInt(clean.slice(2, 4), 16);
+  const b = Number.parseInt(clean.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+  return luminance > 0.62 ? "#111827" : "#ffffff";
+}
 
 interface ManagerModalProps {
   open: boolean;
@@ -30,8 +48,8 @@ interface ManagerModalProps {
   items: ManagerItem[];
   counts: Record<string, number>;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
-  onRename: (item: ManagerItem, newName: string) => Promise<void>;
+  onCreate: (name: string, color: string) => Promise<void>;
+  onRename: (item: ManagerItem, newName: string, color: string) => Promise<void>;
   onDelete: (item: ManagerItem) => Promise<void>;
 }
 
@@ -49,8 +67,10 @@ function ManagerModal({
   onDelete,
 }: ManagerModalProps) {
   const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#2563eb");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingColor, setEditingColor] = useState(DEFAULT_TAG_COLOR);
   const [deleteTarget, setDeleteTarget] = useState<ManagerItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -66,8 +86,10 @@ function ManagerModal({
   useEffect(() => {
     if (!open) return;
     setNewName("");
+    setNewColor("#2563eb");
     setEditingId(null);
     setEditingName("");
+    setEditingColor(DEFAULT_TAG_COLOR);
     setDeleteTarget(null);
     setError("");
   }, [open]);
@@ -82,8 +104,9 @@ function ManagerModal({
     try {
       setBusy(true);
       setError("");
-      await onCreate(clean);
+      await onCreate(clean, newColor);
       setNewName("");
+      setNewColor("#2563eb");
     } catch (err) {
       setError(
         err instanceof Error
@@ -106,7 +129,7 @@ function ManagerModal({
     try {
       setBusy(true);
       setError("");
-      await onRename(item, clean);
+      await onRename(item, clean, editingColor);
       setEditingId(null);
       setEditingName("");
     } catch (err) {
@@ -204,18 +227,45 @@ function ManagerModal({
                 Nova {singular}
               </label>
 
-              <div className="input-group">
-                <span className="input-group-text bg-body">
-                  <i className={`bi ${icon}`} />
-                </span>
+              <div className="d-flex flex-column flex-sm-row gap-2">
+                <div className="input-group flex-grow-1">
+                  <span className="input-group-text bg-body">
+                    <i className={`bi ${icon}`} />
+                  </span>
 
-                <input
-                  className="form-control"
-                  value={newName}
-                  onChange={(event) => setNewName(event.target.value)}
-                  placeholder={`Nome da ${singular}`}
-                  maxLength={60}
-                />
+                  <input
+                    className="form-control"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder={`Nome da ${singular}`}
+                    maxLength={60}
+                  />
+                </div>
+
+                <div
+                  className="d-flex align-items-center gap-2 border rounded px-2"
+                  style={{ minHeight: 38 }}
+                  title="Escolher cor"
+                >
+                  <span
+                    className="rounded-circle"
+                    style={{
+                      width: 18,
+                      height: 18,
+                      background: newColor,
+                      border: "1px solid rgba(0,0,0,.15)",
+                    }}
+                  />
+
+                  <input
+                    type="color"
+                    value={newColor}
+                    onChange={(event) => setNewColor(event.target.value)}
+                    className="form-control form-control-color border-0 p-0"
+                    title="Cor da tag"
+                    style={{ width: 34, height: 30 }}
+                  />
+                </div>
 
                 <button
                   className="btn btn-primary"
@@ -226,6 +276,20 @@ function ManagerModal({
                   Adicionar
                 </button>
               </div>
+
+              {newName.trim() && (
+                <div className="mt-2">
+                  <span
+                    className="badge rounded-pill px-3 py-2"
+                    style={{
+                      background: newColor,
+                      color: contrastText(newColor),
+                    }}
+                  >
+                    #{newName.trim()}
+                  </span>
+                </div>
+              )}
             </form>
 
             <div className="d-flex align-items-center justify-content-between mb-2">
@@ -261,50 +325,77 @@ function ManagerModal({
                       }}
                     >
                       {editing ? (
-                        <div className="d-flex gap-2 align-items-center">
-                          <input
-                            className="form-control"
-                            value={editingName}
-                            onChange={(event) =>
-                              setEditingName(event.target.value)
-                            }
-                            autoFocus
-                            maxLength={60}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void rename(item);
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex gap-2 align-items-center">
+                            <input
+                              className="form-control"
+                              value={editingName}
+                              onChange={(event) =>
+                                setEditingName(event.target.value)
                               }
+                              autoFocus
+                              maxLength={60}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  void rename(item);
+                                }
 
-                              if (event.key === "Escape") {
+                                if (event.key === "Escape") {
+                                  setEditingId(null);
+                                  setEditingName("");
+                                }
+                              }}
+                            />
+
+                            <input
+                              type="color"
+                              value={editingColor}
+                              onChange={(event) =>
+                                setEditingColor(event.target.value)
+                              }
+                              className="form-control form-control-color"
+                              title="Cor da tag"
+                              style={{ width: 48 }}
+                            />
+
+                            <button
+                              type="button"
+                              className="btn btn-success"
+                              onClick={() => void rename(item)}
+                              disabled={busy}
+                              title="Salvar"
+                            >
+                              <i className="bi bi-check-lg" />
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn btn-light border"
+                              onClick={() => {
                                 setEditingId(null);
                                 setEditingName("");
-                              }
-                            }}
-                          />
+                              }}
+                              disabled={busy}
+                              title="Cancelar"
+                            >
+                              <i className="bi bi-x-lg" />
+                            </button>
+                          </div>
 
-                          <button
-                            type="button"
-                            className="btn btn-success"
-                            onClick={() => void rename(item)}
-                            disabled={busy}
-                            title="Salvar"
-                          >
-                            <i className="bi bi-check-lg" />
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-light border"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditingName("");
-                            }}
-                            disabled={busy}
-                            title="Cancelar"
-                          >
-                            <i className="bi bi-x-lg" />
-                          </button>
+                          {editingName.trim() && (
+                            <div>
+                              <span
+                                className="badge rounded-pill px-3 py-2"
+                                style={{
+                                  background: editingColor,
+                                  color: contrastText(editingColor),
+                                }}
+                              >
+                                #{editingName.trim()}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="d-flex align-items-center gap-3">
@@ -314,16 +405,24 @@ function ManagerModal({
                               width: 38,
                               height: 38,
                               borderRadius: 12,
-                              background: "#eff6ff",
-                              color: "#2563eb",
+                              background: safeColor(item.color),
+                              color: contrastText(safeColor(item.color)),
                             }}
                           >
                             <i className={`bi ${icon}`} />
                           </span>
 
                           <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                            <div className="fw-semibold text-truncate">
-                              {item.name}
+                            <div className="d-flex align-items-center gap-2">
+                              <span
+                                className="badge rounded-pill px-2 py-1"
+                                style={{
+                                  background: safeColor(item.color),
+                                  color: contrastText(safeColor(item.color)),
+                                }}
+                              >
+                                #{item.name}
+                              </span>
                             </div>
                             <small className="text-secondary">
                               {count} {count === 1 ? "anotação" : "anotações"}
@@ -336,6 +435,7 @@ function ManagerModal({
                             onClick={() => {
                               setEditingId(item.id);
                               setEditingName(item.name);
+                              setEditingColor(safeColor(item.color));
                               setError("");
                             }}
                             disabled={busy}
@@ -447,25 +547,19 @@ function ManagerModal({
 interface Props {
   open: boolean;
   note: Note | null;
-  categories: Category[];
   tags: Tag[];
-  categoryCounts: Record<string, number>;
   tagCounts: Record<string, number>;
   saving: boolean;
   onClose: () => void;
   onSave: (data: NoteFormData) => Promise<void>;
-  onCreateCategory: (name: string) => Promise<void>;
-  onRenameCategory: (category: Category, newName: string) => Promise<void>;
-  onDeleteCategory: (category: Category) => Promise<void>;
-  onCreateTag: (name: string) => Promise<void>;
-  onRenameTag: (tag: Tag, newName: string) => Promise<void>;
+  onCreateTag: (name: string, color: string) => Promise<void>;
+  onRenameTag: (tag: Tag, newName: string, color: string) => Promise<void>;
   onDeleteTag: (tag: Tag) => Promise<void>;
 }
 
 const empty: NoteFormData = {
   title: "",
   content: "",
-  category: "",
   priority: "none",
   tags: [],
   checklist: [],
@@ -482,16 +576,11 @@ const empty: NoteFormData = {
 export default function NoteModal({
   open,
   note,
-  categories,
   tags,
-  categoryCounts,
   tagCounts,
   saving,
   onClose,
   onSave,
-  onCreateCategory,
-  onRenameCategory,
-  onDeleteCategory,
   onCreateTag,
   onRenameTag,
   onDeleteTag,
@@ -500,14 +589,9 @@ export default function NoteModal({
   const [checkText, setCheckText] = useState("");
   const [err, setErr] = useState("");
 
-  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [tagSelectOpen, setTagSelectOpen] = useState(false);
 
-  const sortedCategories = useMemo(
-    () => [...categories].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
-    [categories]
-  );
 
   const sortedTags = useMemo(
     () => [...tags].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
@@ -522,7 +606,6 @@ export default function NoteModal({
         ? {
             title: note.title,
             content: note.content,
-            category: note.category || "",
             priority: note.priority,
             tags: note.tags || [],
             checklist: note.checklist || [],
@@ -540,7 +623,6 @@ export default function NoteModal({
 
     setCheckText("");
     setErr("");
-    setCategoryManagerOpen(false);
     setTagManagerOpen(false);
     setTagSelectOpen(false);
   }, [open, note]);
@@ -678,35 +760,8 @@ export default function NoteModal({
               />
 
               <div className="row g-3">
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold">Categoria</label>
 
-                  <div className="input-group">
-                    <select
-                      className="form-select"
-                      value={form.category}
-                      onChange={(event) => set("category", event.target.value)}
-                    >
-                      <option value="">Sem categoria</option>
-                      {sortedCategories.map((category) => (
-                        <option key={category.id} value={category.name}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary"
-                      onClick={() => setCategoryManagerOpen(true)}
-                      title="Gerenciar categorias"
-                    >
-                      <i className="bi bi-plus-lg" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <label className="form-label fw-semibold">Prioridade</label>
                   <select
                     className="form-select"
@@ -723,7 +778,7 @@ export default function NoteModal({
                   </select>
                 </div>
 
-                <div className="col-12">
+                <div className="col-md-8">
                   <label className="form-label fw-semibold">Tags</label>
 
                   <div className="input-group">
@@ -765,7 +820,15 @@ export default function NoteModal({
                                   checked={form.tags.includes(tag.name)}
                                   onChange={() => toggleTag(tag.name)}
                                 />
-                                <span>{tag.name}</span>
+                                <span
+                                  className="badge rounded-pill px-2 py-1"
+                                  style={{
+                                    background: safeColor(tag.color),
+                                    color: contrastText(safeColor(tag.color)),
+                                  }}
+                                >
+                                  #{tag.name}
+                                </span>
                               </label>
                             ))
                           )}
@@ -788,19 +851,30 @@ export default function NoteModal({
 
                   {form.tags.length > 0 && (
                     <div className="d-flex flex-wrap gap-1 mt-2">
-                      {form.tags.map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          className="badge rounded-pill bg-body-tertiary text-secondary border"
-                          onClick={() => toggleTag(tag)}
-                          title="Remover tag"
-                          style={{ cursor: "pointer" }}
-                        >
-                          #{tag}
-                          <i className="bi bi-x ms-1" />
-                        </button>
-                      ))}
+                      {form.tags.map((tagName) => {
+                        const tagInfo = tags.find(
+                          (item) => item.name === tagName
+                        );
+                        const color = safeColor(tagInfo?.color);
+
+                        return (
+                          <button
+                            key={tagName}
+                            type="button"
+                            className="badge rounded-pill border-0"
+                            onClick={() => toggleTag(tagName)}
+                            title="Remover tag"
+                            style={{
+                              cursor: "pointer",
+                              background: color,
+                              color: contrastText(color),
+                            }}
+                          >
+                            #{tagName}
+                            <i className="bi bi-x ms-1" />
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1037,20 +1111,6 @@ export default function NoteModal({
           </form>
         </div>
       </div>
-
-      <ManagerModal
-        open={categoryManagerOpen}
-        title="Gerenciar categorias"
-        singular="categoria"
-        plural="categorias"
-        icon="bi-folder2"
-        items={categories}
-        counts={categoryCounts}
-        onClose={() => setCategoryManagerOpen(false)}
-        onCreate={onCreateCategory}
-        onRename={onRenameCategory}
-        onDelete={onDeleteCategory}
-      />
 
       <ManagerModal
         open={tagManagerOpen}

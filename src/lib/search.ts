@@ -1,4 +1,8 @@
-import type { Note, NoteFilters, NotePriority } from "@/types/note";
+import type {
+  Note,
+  NoteFilters,
+  NotePriority,
+} from "@/types/note";
 
 export type NoteSection =
   | "notes"
@@ -6,7 +10,9 @@ export type NoteSection =
   | "favorites"
   | "calendar";
 
-export function normalizeText(value: string): string {
+export function normalizeText(
+  value: string
+): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -14,7 +20,10 @@ export function normalizeText(value: string): string {
     .trim();
 }
 
-const priorityWeight: Record<NotePriority, number> = {
+const priorityWeight: Record<
+  NotePriority,
+  number
+> = {
   none: 0,
   low: 1,
   medium: 2,
@@ -22,31 +31,46 @@ const priorityWeight: Record<NotePriority, number> = {
   urgent: 4,
 };
 
-function timestampMillis(value: Note["updatedAt"]): number {
+function timestampMillis(
+  value: Note["updatedAt"]
+): number {
   return value?.toMillis?.() ?? 0;
 }
 
-function contains(note: Note, search: string): boolean {
-  const query = normalizeText(search);
+function contains(
+  note: Note,
+  search: string
+): boolean {
+  const query =
+    normalizeText(search);
 
   if (!query) {
     return true;
   }
 
-  const searchableText = normalizeText(
-    [
-      note.title,
-      note.content,
-      note.category,
-      note.tags?.join(" ") || "",
-      note.checklist?.map((item) => item.text).join(" ") || "",
-    ].join(" ")
-  );
+  const searchableText =
+    normalizeText(
+      [
+        note.title,
+        note.content,
+        note.tags?.join(" ") || "",
+        note.checklist
+          ?.map(
+            (item) => item.text
+          )
+          .join(" ") || "",
+      ].join(" ")
+    );
 
   return query
     .split(/\s+/)
     .filter(Boolean)
-    .every((term) => searchableText.includes(term));
+    .every(
+      (term) =>
+        searchableText.includes(
+          term
+        )
+    );
 }
 
 export function filterNotes(
@@ -56,83 +80,103 @@ export function filterNotes(
 ): Note[] {
   return notes
     .filter((note) => {
-      // Registros antigos que ainda estavam na antiga lixeira
-      // nunca voltam para a listagem enquanto são removidos do Firebase.
       if (note.deletedAt) {
         return false;
       }
 
-      if (section === "appointments" && !note.appointment) {
-        return false;
-      }
-
-      if (section === "favorites" && !note.favorite) {
-        return false;
-      }
-
-      if (!contains(note, filters.search)) {
-        return false;
-      }
-
       if (
-        filters.priority !== "all" &&
-        note.priority !== filters.priority
+        section ===
+          "appointments" &&
+        !note.appointment
       ) {
         return false;
       }
 
       if (
-        filters.category !== "all" &&
-        note.category !== filters.category
+        section ===
+          "favorites" &&
+        !note.favorite
       ) {
         return false;
       }
 
+      if (
+        !contains(
+          note,
+          filters.search
+        )
+      ) {
+        return false;
+      }
 
       if (
-        filters.tag !== "all" &&
-        !(note.tags || []).includes(filters.tag)
+        filters.priority !==
+          "all" &&
+        note.priority !==
+          filters.priority
+      ) {
+        return false;
+      }
+
+      if (
+        filters.tag !==
+          "all" &&
+        !(note.tags || []).includes(
+          filters.tag
+        )
       ) {
         return false;
       }
 
       if (
         filters.dateFrom &&
-        (!note.date || note.date < filters.dateFrom)
+        (
+          !note.date ||
+          note.date <
+            filters.dateFrom
+        )
       ) {
         return false;
       }
 
       if (
         filters.dateTo &&
-        (!note.date || note.date > filters.dateTo)
+        (
+          !note.date ||
+          note.date >
+            filters.dateTo
+        )
       ) {
         return false;
       }
 
       if (
-        filters.appointment === "withDate" &&
+        filters.appointment ===
+          "withDate" &&
         !note.date
       ) {
         return false;
       }
 
       if (
-        filters.appointment === "withoutDate" &&
+        filters.appointment ===
+          "withoutDate" &&
         note.date
       ) {
         return false;
       }
 
       if (
-        filters.status === "pending" &&
+        filters.status ===
+          "pending" &&
         note.completed
       ) {
         return false;
       }
 
       if (
-        filters.status === "completed" &&
+        filters.status ===
+          "completed" &&
         !note.completed
       ) {
         return false;
@@ -148,36 +192,93 @@ export function filterNotes(
       return true;
     })
     .sort((a, b) => {
-      if (a.pinned !== b.pinned) {
-        return a.pinned ? -1 : 1;
+      if (
+        a.pinned !== b.pinned
+      ) {
+        return a.pinned
+          ? -1
+          : 1;
       }
 
       switch (filters.sort) {
         case "createdDesc":
-          return timestampMillis(b.createdAt) - timestampMillis(a.createdAt);
-
-        case "dateAsc":
           return (
-            (a.date || "9999-12-31").localeCompare(
-              b.date || "9999-12-31"
-            ) ||
-            (a.time || "").localeCompare(b.time || "")
+            (b.createdAt
+              ?.toMillis?.() ??
+              0) -
+            (a.createdAt
+              ?.toMillis?.() ??
+              0)
           );
+
+        case "dateAsc": {
+          if (
+            a.date &&
+            !b.date
+          ) {
+            return -1;
+          }
+
+          if (
+            !a.date &&
+            b.date
+          ) {
+            return 1;
+          }
+
+          if (
+            a.date &&
+            b.date
+          ) {
+            return (
+              `${a.date} ${
+                a.time || ""
+              }`.localeCompare(
+                `${b.date} ${
+                  b.time || ""
+                }`
+              )
+            );
+          }
+
+          return (
+            timestampMillis(
+              b.updatedAt
+            ) -
+            timestampMillis(
+              a.updatedAt
+            )
+          );
+        }
 
         case "priorityDesc":
           return (
-            priorityWeight[b.priority] -
-            priorityWeight[a.priority]
+            priorityWeight[
+              b.priority
+            ] -
+            priorityWeight[
+              a.priority
+            ]
           );
 
         case "titleAsc":
-          return normalizeText(a.title).localeCompare(
-            normalizeText(b.title)
+          return (
+            a.title || ""
+          ).localeCompare(
+            b.title || "",
+            "pt-BR"
           );
 
         case "updatedDesc":
         default:
-          return timestampMillis(b.updatedAt) - timestampMillis(a.updatedAt);
+          return (
+            timestampMillis(
+              b.updatedAt
+            ) -
+            timestampMillis(
+              a.updatedAt
+            )
+          );
       }
     });
 }

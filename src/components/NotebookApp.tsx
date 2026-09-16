@@ -9,10 +9,10 @@ import { filterNotes } from "@/lib/search";
 import { exportNotesToPdf } from "@/lib/pdf";
 import { exportCsv,exportJson } from "@/lib/backup";
 import { addRecurrence,todayIso } from "@/lib/date";
-import type { Category,Tag,Note,NoteFilters,NoteFormData } from "@/types/note";
+import type { Tag,Note,NoteFilters,NoteFormData } from "@/types/note";
 import NoteCard from "@/components/NoteCard";import NoteModal from "@/components/NoteModal";import ConfirmModal from "@/components/ConfirmModal";import FiltersPanel from "@/components/FiltersPanel";import CalendarView from "@/components/CalendarView";import ProfileModal from "@/components/ProfileModal";import HistoryModal from "@/components/HistoryModal";import ReminderManager from "@/components/ReminderManager";
 type Section="notes"|"appointments"|"favorites"|"calendar";
-const defaults:NoteFilters={search:"",priority:"all",category:"all",tag:"all",dateFrom:"",dateTo:"",appointment:"all",status:"all",favoritesOnly:false,sort:"updatedDesc"};
+const defaults:NoteFilters={search:"",priority:"all",tag:"all",dateFrom:"",dateTo:"",appointment:"all",status:"all",favoritesOnly:false,sort:"updatedDesc"};
 function message(e:unknown){if(e instanceof FirebaseError&&e.code==="permission-denied")return"Sem permissão. Confira as regras do Firebase.";return"Ocorreu um erro. Tente novamente."}
 async function deleteNoteSubcollection(
  userId:string,
@@ -70,51 +70,31 @@ async function deleteNoteTree(
  );
 }
 export default function NotebookApp(){
- const router=useRouter(),{user,loading:authLoading,logout}=useAuth(); const [notes,setNotes]=useState<Note[]>([]),[customCats,setCustomCats]=useState<Category[]>([]),[customTags,setCustomTags]=useState<Tag[]>([]),[loading,setLoading]=useState(true),[filters,setFilters]=useState(defaults),[section,setSection]=useState<Section>("notes"),[filtersOpen,setFiltersOpen]=useState(false),[sidebar,setSidebar]=useState(false),[sidebarHover,setSidebarHover]=useState(false),[modal,setModal]=useState(false),[editing,setEditing]=useState<Note|null>(null),[saving,setSaving]=useState(false),[deleteTarget,setDeleteTarget]=useState<Note|null>(null),[busyDelete,setBusyDelete]=useState(false),[toast,setToast]=useState<{type:"success"|"danger"|"warning";text:string}|null>(null),[profile,setProfile]=useState(false),[history,setHistory]=useState<Note|null>(null),[dark,setDarkState]=useState(false);
+ const router=useRouter(),{user,loading:authLoading,logout}=useAuth(); const [notes,setNotes]=useState<Note[]>([]),[customTags,setCustomTags]=useState<Tag[]>([]),[loading,setLoading]=useState(true),[filters,setFilters]=useState(defaults),[section,setSection]=useState<Section>("notes"),[filtersOpen,setFiltersOpen]=useState(false),[sidebar,setSidebar]=useState(false),[sidebarHover,setSidebarHover]=useState(false),[modal,setModal]=useState(false),[editing,setEditing]=useState<Note|null>(null),[saving,setSaving]=useState(false),[deleteTarget,setDeleteTarget]=useState<Note|null>(null),[busyDelete,setBusyDelete]=useState(false),[toast,setToast]=useState<{type:"success"|"danger"|"warning";text:string}|null>(null),[profile,setProfile]=useState(false),[history,setHistory]=useState<Note|null>(null),[dark,setDarkState]=useState(false);
  const legacyCleanupRef=useRef<Set<string>>(new Set());
  useEffect(()=>{const v=localStorage.getItem("caderno-theme")==="dark";setDarkState(v)},[]);
  const setDark=(v:boolean)=>{setDarkState(v);localStorage.setItem("caderno-theme",v?"dark":"light")};
  useEffect(()=>{if(!authLoading&&!user)router.replace("/")},[authLoading,user,router]);
- useEffect(()=>{if(!user)return;setLoading(true);const unsub=onSnapshot(query(collection(db,"users",user.uid,"notes"),orderBy("updatedAt","desc")),s=>{setNotes(s.docs.map(d=>({id:d.id,...d.data(),tags:d.data().tags||[],checklist:d.data().checklist||[],recurrence:d.data().recurrence||"none",reminderMinutes:d.data().reminderMinutes??null,archived:false,deletedAt:d.data().deletedAt||null}) as Note));setLoading(false)},e=>{setToast({type:"danger",text:message(e)});setLoading(false)});const uc=onSnapshot(
- collection(db,"users",user.uid,"categories"),
- s=>setCustomCats(
-  s.docs.map(d=>({id:d.id,...d.data()}) as Category)
- ),
- e=>setToast({type:"danger",text:message(e)})
-);
-const ut=onSnapshot(
- collection(db,"users",user.uid,"tags"),
- s=>setCustomTags(
-  s.docs.map(d=>({id:d.id,...d.data()}) as Tag)
- ),
- e=>setToast({type:"danger",text:message(e)})
-);
-return()=>{unsub();uc();ut()}},[user]);
+ useEffect(()=>{if(!user)return;setLoading(true);const unsub=onSnapshot(query(collection(db,"users",user.uid,"notes"),orderBy("updatedAt","desc")),s=>{setNotes(s.docs.map(d=>({id:d.id,...d.data(),tags:d.data().tags||[],checklist:d.data().checklist||[],recurrence:d.data().recurrence||"none",reminderMinutes:d.data().reminderMinutes??null,archived:false,deletedAt:d.data().deletedAt||null}) as Note));setLoading(false)},e=>{setToast({type:"danger",text:message(e)});setLoading(false)});const ut=onSnapshot(collection(db,"users",user.uid,"tags"),s=>setCustomTags(s.docs.map(d=>{const data=d.data();return {id:d.id,...data,color:typeof data.color==="string"?data.color:"#64748b"} as Tag})),e=>setToast({type:"danger",text:message(e)}));return()=>{unsub();ut()}},[user]);
  useEffect(()=>{if(!user)return;notes.filter(note=>Boolean(note.deletedAt)).forEach(note=>{if(legacyCleanupRef.current.has(note.id))return;legacyCleanupRef.current.add(note.id);void deleteNoteTree(user.uid,note.id).catch(()=>legacyCleanupRef.current.delete(note.id))})},[notes,user]);
- useEffect(()=>{if(!user||loading)return;const existing=new Set(customCats.map(category=>category.name.trim().toLowerCase()));const names=Array.from(new Set(notes.map(note=>(note.category||"").trim()).filter(Boolean))).filter(name=>!existing.has(name.toLowerCase()));if(!names.length)return;void Promise.all(names.map(name=>addDoc(collection(db,"users",user.uid,"categories"),{name,createdAt:serverTimestamp()})))},[user,loading,notes,customCats]);
- useEffect(()=>{if(!user||loading)return;const existing=new Set(customTags.map(tag=>tag.name.trim().toLowerCase()));const names=Array.from(new Set(notes.flatMap(note=>note.tags||[]).map(name=>name.trim()).filter(Boolean))).filter(name=>!existing.has(name.toLowerCase()));if(!names.length)return;void Promise.all(names.map(name=>addDoc(collection(db,"users",user.uid,"tags"),{name,createdAt:serverTimestamp()})))},[user,loading,notes,customTags]);
+ useEffect(()=>{if(!user||loading)return;const existing=new Set(customTags.map(tag=>tag.name.trim().toLowerCase()));const names=Array.from(new Set(notes.flatMap(note=>note.tags||[]).map(name=>name.trim()).filter(Boolean))).filter(name=>!existing.has(name.toLowerCase()));if(!names.length)return;void Promise.all(names.map(name=>addDoc(collection(db,"users",user.uid,"tags"),{name,color:"#64748b",createdAt:serverTimestamp()})))},[user,loading,notes,customTags]);
  useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),3500);return()=>clearTimeout(id)},[toast]);
- const cats=useMemo(()=>customCats.map(x=>x.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR")),[customCats]);
  const tagOptions=useMemo(()=>customTags.map(x=>x.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR")),[customTags]);
- const categoryCounts=useMemo(()=>notes.reduce<Record<string,number>>((acc,note)=>{const name=(note.category||"").trim();if(name)acc[name]=(acc[name]||0)+1;return acc},{}),[notes]);
+ const tagColors=useMemo(()=>customTags.reduce<Record<string,string>>((acc,tag)=>{if(tag.name)acc[tag.name]=tag.color||"#64748b";return acc},{}),[customTags]);
  const tagCounts=useMemo(()=>notes.reduce<Record<string,number>>((acc,note)=>{(note.tags||[]).forEach(name=>{const clean=name.trim();if(clean)acc[clean]=(acc[clean]||0)+1});return acc},{}),[notes]);
  const visible=useMemo(()=>filterNotes(notes,filters,section),[notes,filters,section]); const today=todayIso(); const active=notes.filter(n=>!n.deletedAt); const stats={total:active.length,appointments:active.filter(n=>n.appointment).length,today:active.filter(n=>n.date===today&&!n.completed).length,urgent:active.filter(n=>n.priority==="urgent"&&!n.completed).length};
- async function historySnapshot(note:Note){if(!user)return;await addDoc(collection(db,"users",user.uid,"notes",note.id,"history"),{title:note.title,content:note.content,category:note.category,priority:note.priority,tags:note.tags||[],date:note.date||null,time:note.time||null,checklist:note.checklist||[],savedAt:serverTimestamp()})}
+ async function historySnapshot(note:Note){if(!user)return;await addDoc(collection(db,"users",user.uid,"notes",note.id,"history"),{title:note.title,content:note.content,priority:note.priority,tags:note.tags||[],date:note.date||null,time:note.time||null,checklist:note.checklist||[],savedAt:serverTimestamp()})}
  async function save(data:NoteFormData){if(!user)return;setSaving(true);try{
-  const payload={title:data.title.trim(),content:data.content.trim(),category:data.category.trim(),priority:data.priority,tags:Array.from(new Set(data.tags.map(x=>x.trim()).filter(Boolean))),checklist:data.checklist,appointment:data.appointment||Boolean(data.date),date:data.date||null,time:data.date&&data.time?data.time:null,recurrence:data.date?data.recurrence:"none",reminderMinutes:data.date?data.reminderMinutes:null,favorite:data.favorite,pinned:data.pinned,completed:data.completed,updatedAt:serverTimestamp()};
+  const payload={title:data.title.trim(),content:data.content.trim(),priority:data.priority,tags:Array.from(new Set(data.tags.map(x=>x.trim()).filter(Boolean))),checklist:data.checklist,appointment:data.appointment||Boolean(data.date),date:data.date||null,time:data.date&&data.time?data.time:null,recurrence:data.date?data.recurrence:"none",reminderMinutes:data.date?data.reminderMinutes:null,favorite:data.favorite,pinned:data.pinned,completed:data.completed,updatedAt:serverTimestamp()};
   if(editing){await historySnapshot(editing);await updateDoc(doc(db,"users",user.uid,"notes",editing.id),payload);setToast({type:"success",text:"Anotação atualizada."})}
   else{await addDoc(collection(db,"users",user.uid,"notes"),{...payload,createdAt:serverTimestamp()});setToast({type:"success",text:"Anotação criada."})}
   setModal(false);setEditing(null)
  }catch(e){setToast({type:"danger",text:message(e)})}finally{setSaving(false)}}
  async function patch(note:Note,data:Partial<Note>){if(!user)return;try{if(data.completed===true&&note.recurrence!=="none"&&note.date){await historySnapshot(note);await updateDoc(doc(db,"users",user.uid,"notes",note.id),{completed:false,date:addRecurrence(note.date,note.recurrence),updatedAt:serverTimestamp()});setToast({type:"success",text:"Compromisso concluído e próxima ocorrência criada."});return}await updateDoc(doc(db,"users",user.uid,"notes",note.id),{...data,updatedAt:serverTimestamp()})}catch(e){setToast({type:"danger",text:message(e)})}}
  async function removeNote(){if(!user||!deleteTarget)return;setBusyDelete(true);try{await deleteNoteTree(user.uid,deleteTarget.id);setDeleteTarget(null);setToast({type:"success",text:"Anotação excluída definitivamente."})}catch(e){setToast({type:"danger",text:message(e)})}finally{setBusyDelete(false)}}
- async function createCat(name:string){if(!user)return;const clean=name.trim();if(!clean)throw new Error("Informe o nome da categoria.");if(customCats.some(category=>category.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma categoria com esse nome.");await addDoc(collection(db,"users",user.uid,"categories"),{name:clean,createdAt:serverTimestamp()})}
- async function updateCategoryNotes(oldName:string,newName:string){if(!user)return;const affected=notes.filter(note=>note.category===oldName);for(let index=0;index<affected.length;index+=400){const batch=writeBatch(db);affected.slice(index,index+400).forEach(note=>batch.update(doc(db,"users",user.uid,"notes",note.id),{category:newName,updatedAt:serverTimestamp()}));await batch.commit()}}
- async function renameCategory(category:Category,newName:string){if(!user)return;const clean=newName.trim();if(!clean)throw new Error("Informe o nome da categoria.");if(clean===category.name)return;if(customCats.some(item=>item.id!==category.id&&item.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma categoria com esse nome.");await updateCategoryNotes(category.name,clean);await updateDoc(doc(db,"users",user.uid,"categories",category.id),{name:clean,updatedAt:serverTimestamp()});setFilters(current=>current.category===category.name?{...current,category:clean}:current)}
- async function deleteCategory(category:Category){if(!user)return;await updateCategoryNotes(category.name,"");await deleteDoc(doc(db,"users",user.uid,"categories",category.id));setFilters(current=>current.category===category.name?{...current,category:"all"}:current)}
- async function createTag(name:string){if(!user)return;const clean=name.trim();if(!clean)throw new Error("Informe o nome da tag.");if(customTags.some(tag=>tag.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await addDoc(collection(db,"users",user.uid,"tags"),{name:clean,createdAt:serverTimestamp()})}
+ async function createTag(name:string,color:string){if(!user)return;const clean=name.trim();const cleanColor=/^#[0-9a-f]{6}$/i.test(color)?color:"#64748b";if(!clean)throw new Error("Informe o nome da tag.");if(customTags.some(tag=>tag.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await addDoc(collection(db,"users",user.uid,"tags"),{name:clean,color:cleanColor,createdAt:serverTimestamp()})}
  async function updateTagNotes(oldName:string,newName:string|null){if(!user)return;const affected=notes.filter(note=>(note.tags||[]).includes(oldName));for(let index=0;index<affected.length;index+=400){const batch=writeBatch(db);affected.slice(index,index+400).forEach(note=>{const next=(note.tags||[]).flatMap(tag=>tag===oldName?(newName?[newName]:[]):[tag]);batch.update(doc(db,"users",user.uid,"notes",note.id),{tags:Array.from(new Set(next)),updatedAt:serverTimestamp()})});await batch.commit()}}
- async function renameTag(tag:Tag,newName:string){if(!user)return;const clean=newName.trim();if(!clean)throw new Error("Informe o nome da tag.");if(clean===tag.name)return;if(customTags.some(item=>item.id!==tag.id&&item.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await updateTagNotes(tag.name,clean);await updateDoc(doc(db,"users",user.uid,"tags",tag.id),{name:clean,updatedAt:serverTimestamp()});setFilters(current=>current.tag===tag.name?{...current,tag:clean}:current)}
+ async function renameTag(tag:Tag,newName:string,color:string){if(!user)return;const clean=newName.trim();const cleanColor=/^#[0-9a-f]{6}$/i.test(color)?color:"#64748b";if(!clean)throw new Error("Informe o nome da tag.");if(customTags.some(item=>item.id!==tag.id&&item.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");if(clean!==tag.name)await updateTagNotes(tag.name,clean);await updateDoc(doc(db,"users",user.uid,"tags",tag.id),{name:clean,color:cleanColor,updatedAt:serverTimestamp()});setFilters(current=>current.tag===tag.name?{...current,tag:clean}:current)}
  async function deleteTag(tag:Tag){if(!user)return;await updateTagNotes(tag.name,null);await deleteDoc(doc(db,"users",user.uid,"tags",tag.id));setFilters(current=>current.tag===tag.name?{...current,tag:"all"}:current)}
  async function notifications(){if(typeof Notification==="undefined"){setToast({type:"warning",text:"Seu navegador não suporta notificações."});return}const p=await Notification.requestPermission();setToast({type:p==="granted"?"success":"warning",text:p==="granted"?"Lembretes ativados neste navegador.":"Permissão de notificações não concedida."})}
 
@@ -696,9 +676,6 @@ return()=>{unsub();uc();ut()}},[user]);
             {nextAppointment.time
              ?` às ${nextAppointment.time}`
              :""}
-            {nextAppointment.category
-             ?` • ${nextAppointment.category}`
-             :""}
            </small>
           </>
          ):(
@@ -892,7 +869,6 @@ return()=>{unsub();uc();ut()}},[user]);
         <FiltersPanel
          open={filtersOpen}
          filters={filters}
-         categories={cats}
          tags={tagOptions}
          onChange={setFilters}
          onClear={()=>setFilters(defaults)}
@@ -1044,7 +1020,7 @@ return()=>{unsub();uc();ut()}},[user]);
             </div>
 
             <div className="col-xl-2 text-center">
-             CATEGORIA / PRIORIDADE
+             TAGS / PRIORIDADE
             </div>
 
             <div className="col-xl-2 text-center">
@@ -1052,7 +1028,7 @@ return()=>{unsub();uc();ut()}},[user]);
             </div>
 
             <div className="col-xl-2 text-center">
-             STATUS
+             DETALHES
             </div>
 
             <div className="col-xl-2 text-center">
@@ -1066,6 +1042,7 @@ return()=>{unsub();uc();ut()}},[user]);
             key={note.id}
             note={note}
             search={filters.search}
+            tagColors={tagColors}
             onEdit={item=>{
              setEditing(item);
              setModal(true);
@@ -1109,9 +1086,7 @@ return()=>{unsub();uc();ut()}},[user]);
    <NoteModal
     open={modal}
     note={editing}
-    categories={customCats}
     tags={customTags}
-    categoryCounts={categoryCounts}
     tagCounts={tagCounts}
     saving={saving}
     onClose={()=>{
@@ -1121,9 +1096,6 @@ return()=>{unsub();uc();ut()}},[user]);
      }
     }}
     onSave={save}
-    onCreateCategory={createCat}
-    onRenameCategory={renameCategory}
-    onDeleteCategory={deleteCategory}
     onCreateTag={createTag}
     onRenameTag={renameTag}
     onDeleteTag={deleteTag}

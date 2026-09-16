@@ -8,7 +8,6 @@ import type {
 interface Props {
   open: boolean;
   filters: NoteFilters;
-  categories: string[];
   tags: string[];
   onChange: (
     filters: NoteFilters
@@ -19,7 +18,6 @@ interface Props {
 export default function FiltersPanel({
   open,
   filters,
-  categories,
   tags,
   onChange,
   onClear,
@@ -39,28 +37,32 @@ export default function FiltersPanel({
   }
 
   const hasActiveFilters =
-    filters.priority !== "all" ||
-    filters.category !== "all" ||
+    filters.priority !==
+      "all" ||
     filters.tag !== "all" ||
-    Boolean(filters.dateFrom) ||
-    Boolean(filters.dateTo) ||
-    filters.appointment !== "all" ||
+    Boolean(
+      filters.dateFrom
+    ) ||
+    Boolean(
+      filters.dateTo
+    ) ||
+    filters.appointment !==
+      "all" ||
     filters.status !== "all" ||
     filters.favoritesOnly ||
-    filters.sort !== "updatedDesc";
+    filters.sort !==
+      "updatedDesc";
 
   return (
     <div
       className="bg-body border p-3 p-lg-4"
       style={{
         borderRadius: 16,
-
         boxShadow:
           "0 5px 18px rgba(15,23,42,.04)",
       }}
     >
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-
         <div>
           <div className="fw-bold">
             Filtros
@@ -84,44 +86,7 @@ export default function FiltersPanel({
       </div>
 
       <div className="row g-3">
-
-        {/* CATEGORIA */}
         <div className="col-12 col-md-6 col-xl-3">
-
-          <label className="form-label small fw-semibold">
-            Categoria
-          </label>
-
-          <select
-            className="form-select"
-            value={filters.category}
-            onChange={(event) =>
-              setFilter(
-                "category",
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Todas
-            </option>
-
-            {categories.map(
-              (category) => (
-                <option
-                  key={category}
-                  value={category}
-                >
-                  {category}
-                </option>
-              )
-            )}
-          </select>
-        </div>
-
-        {/* TAG */}
-        <div className="col-12 col-md-6 col-xl-3">
-
           <label className="form-label small fw-semibold">
             Tag
           </label>
@@ -129,7 +94,9 @@ export default function FiltersPanel({
           <select
             className="form-select"
             value={filters.tag}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setFilter(
                 "tag",
                 event.target.value
@@ -153,17 +120,19 @@ export default function FiltersPanel({
           </select>
         </div>
 
-        {/* PRIORIDADE */}
         <div className="col-12 col-md-6 col-xl-3">
-
           <label className="form-label small fw-semibold">
             Prioridade
           </label>
 
           <select
             className="form-select"
-            value={filters.priority}
-            onChange={(event) =>
+            value={
+              filters.priority
+            }
+            onChange={(
+              event
+            ) =>
               setFilter(
                 "priority",
                 event.target
@@ -195,17 +164,19 @@ export default function FiltersPanel({
           </select>
         </div>
 
-        {/* STATUS */}
         <div className="col-12 col-md-6 col-xl-3">
-
           <label className="form-label small fw-semibold">
             Status
           </label>
 
           <select
             className="form-select"
-            value={filters.status}
-            onChange={(event) =>
+            value={
+              filters.status
+            }
+            onChange={(
+              event
+            ) =>
               setFilter(
                 "status",
                 event.target
@@ -228,57 +199,19 @@ export default function FiltersPanel({
           </select>
         </div>
 
-        {/* DATA INICIAL */}
         <div className="col-12 col-md-6 col-xl-3">
-
-          <label className="form-label small fw-semibold">
-            Data inicial
-          </label>
-
-          <input
-            type="date"
-            className="form-control"
-            value={filters.dateFrom}
-            onChange={(event) =>
-              setFilter(
-                "dateFrom",
-                event.target.value
-              )
-            }
-          />
-        </div>
-
-        {/* DATA FINAL */}
-        <div className="col-12 col-md-6 col-xl-3">
-
-          <label className="form-label small fw-semibold">
-            Data final
-          </label>
-
-          <input
-            type="date"
-            className="form-control"
-            value={filters.dateTo}
-            onChange={(event) =>
-              setFilter(
-                "dateTo",
-                event.target.value
-              )
-            }
-          />
-        </div>
-
-        {/* COMPROMISSO */}
-        <div className="col-12 col-md-6 col-xl-3">
-
           <label className="form-label small fw-semibold">
             Data / compromisso
           </label>
 
           <select
             className="form-select"
-            value={filters.appointment}
-            onChange={(event) =>
+            value={
+              filters.appointment
+            }
+            onChange={(
+              event
+            ) =>
               setFilter(
                 "appointment",
                 event.target
@@ -301,9 +234,51 @@ export default function FiltersPanel({
           </select>
         </div>
 
-        {/* ORDENAÇÃO */}
         <div className="col-12 col-md-6 col-xl-3">
+          <label className="form-label small fw-semibold">
+            Data inicial
+          </label>
 
+          <input
+            type="date"
+            className="form-control"
+            value={
+              filters.dateFrom
+            }
+            onChange={(
+              event
+            ) =>
+              setFilter(
+                "dateFrom",
+                event.target.value
+              )
+            }
+          />
+        </div>
+
+        <div className="col-12 col-md-6 col-xl-3">
+          <label className="form-label small fw-semibold">
+            Data final
+          </label>
+
+          <input
+            type="date"
+            className="form-control"
+            value={
+              filters.dateTo
+            }
+            onChange={(
+              event
+            ) =>
+              setFilter(
+                "dateTo",
+                event.target.value
+              )
+            }
+          />
+        </div>
+
+        <div className="col-12 col-md-6 col-xl-3">
           <label className="form-label small fw-semibold">
             Ordenar
           </label>
@@ -311,7 +286,9 @@ export default function FiltersPanel({
           <select
             className="form-select"
             value={filters.sort}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setFilter(
                 "sort",
                 event.target
@@ -342,9 +319,8 @@ export default function FiltersPanel({
           </select>
         </div>
 
-        <div className="col-12">
-
-          <div className="form-check">
+        <div className="col-12 col-md-6 col-xl-3 d-flex align-items-end">
+          <div className="form-check mb-2">
             <input
               id="filter-favorites"
               className="form-check-input"
@@ -352,7 +328,9 @@ export default function FiltersPanel({
               checked={
                 filters.favoritesOnly
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setFilter(
                   "favoritesOnly",
                   event.target.checked
