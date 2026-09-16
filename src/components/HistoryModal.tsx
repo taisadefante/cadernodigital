@@ -1,501 +1,439 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+} from "firebase/firestore";
+
+import { db } from "@/lib/firebase";
 import type {
+  ChecklistItem,
   Note,
-  NoteFormData,
   NotePriority,
-  Recurrence,
 } from "@/types/note";
 
 interface Props {
   open: boolean;
+  userId: string;
   note: Note | null;
-  categories: string[];
-  saving: boolean;
   onClose: () => void;
-  onSave: (data: NoteFormData) => Promise<void>;
-  onCreateCategory: (name: string) => Promise<void>;
 }
 
-const empty: NoteFormData = {
-  title: "",
-  content: "",
-  category: "Geral",
-  priority: "none",
-  tagsText: "",
-  checklist: [],
-  appointment: false,
-  date: "",
-  time: "",
-  recurrence: "none",
-  reminderMinutes: null,
-  favorite: false,
-  pinned: false,
-  completed: false,
-  archived: false,
+interface HistoryItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  priority: NotePriority;
+  tags: string[];
+  date: string | null;
+  time: string | null;
+  checklist: ChecklistItem[];
+  savedAt: Timestamp | null;
+}
+
+const priorityLabel: Record<NotePriority, string> = {
+  none: "Sem prioridade",
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+  urgent: "Urgente",
 };
 
-export default function NoteModal({
+function formatTimestamp(value: Timestamp | null) {
+  if (!value) return "Data não disponível";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(value.toDate());
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "Sem data";
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) return value;
+
+  return new Intl.DateTimeFormat("pt-BR").format(
+    new Date(year, month - 1, day)
+  );
+}
+
+export default function HistoryModal({
   open,
+  userId,
   note,
-  categories,
-  saving,
   onClose,
-  onSave,
-  onCreateCategory,
 }: Props) {
-  const [form, setForm] = useState<NoteFormData>(empty);
-  const [newCat, setNewCat] = useState("");
-  const [showCat, setShowCat] = useState(false);
-  const [checkText, setCheckText] = useState("");
-  const [err, setErr] = useState("");
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!open) return;
-
-    setForm(
-      note
-        ? {
-            title: note.title,
-            content: note.content,
-            category: note.category || "Geral",
-            priority: note.priority,
-            tagsText: note.tags.join(", "),
-            checklist: note.checklist || [],
-            appointment: note.appointment,
-            date: note.date || "",
-            time: note.time || "",
-            recurrence: note.recurrence || "none",
-            reminderMinutes: note.reminderMinutes ?? null,
-            favorite: note.favorite,
-            pinned: note.pinned,
-            completed: note.completed,
-            archived: note.archived,
-          }
-        : empty
-    );
-
-    setErr("");
-    setCheckText("");
-    setNewCat("");
-    setShowCat(false);
-  }, [open, note]);
-
-  if (!open) return null;
-
-  const set = <K extends keyof NoteFormData>(
-    key: K,
-    value: NoteFormData[K]
-  ) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const addCheck = () => {
-    const text = checkText.trim();
-    if (!text) return;
-
-    set("checklist", [
-      ...form.checklist,
-      {
-        id: crypto.randomUUID(),
-        text,
-        done: false,
-      },
-    ]);
-
-    setCheckText("");
-  };
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!form.title.trim() && !form.content.trim() && !form.checklist.length) {
-      setErr("Escreva um título, uma anotação ou adicione um item ao checklist.");
+    if (!open || !note || !userId) {
+      setItems([]);
+      setError("");
       return;
     }
 
-    setErr("");
-    await onSave(form);
-  }
+    let active = true;
 
-  const priorities: Array<[NotePriority, string]> = [
-    ["none", "⚪ Sem prioridade"],
-    ["low", "🟢 Baixa"],
-    ["medium", "🟡 Média"],
-    ["high", "🟠 Alta"],
-    ["urgent", "🔴 Urgente"],
-  ];
+    async function loadHistory() {
+      if (!note) return;
 
-  const recurrences: Array<[Recurrence, string]> = [
-    ["none", "Não repetir"],
-    ["daily", "Todos os dias"],
-    ["weekly", "Toda semana"],
-    ["monthly", "Todo mês"],
-    ["yearly", "Todo ano"],
-  ];
+      try {
+        setLoading(true);
+        setError("");
+
+        const snapshot = await getDocs(
+          query(
+            collection(
+              db,
+              "users",
+              userId,
+              "notes",
+              note.id,
+              "history"
+            ),
+            orderBy("savedAt", "desc")
+          )
+        );
+
+        if (!active) return;
+
+        const historyItems = snapshot.docs.map((document) => {
+          const data = document.data();
+
+          return {
+            id: document.id,
+            title:
+              typeof data.title === "string"
+                ? data.title
+                : "",
+            content:
+              typeof data.content === "string"
+                ? data.content
+                : "",
+            category:
+              typeof data.category === "string"
+                ? data.category
+                : "",
+            priority:
+              (data.priority as NotePriority) || "none",
+            tags: Array.isArray(data.tags)
+              ? data.tags.filter(
+                  (item): item is string =>
+                    typeof item === "string"
+                )
+              : [],
+            date:
+              typeof data.date === "string"
+                ? data.date
+                : null,
+            time:
+              typeof data.time === "string"
+                ? data.time
+                : null,
+            checklist: Array.isArray(data.checklist)
+              ? (data.checklist as ChecklistItem[])
+              : [],
+            savedAt:
+              data.savedAt instanceof Timestamp
+                ? data.savedAt
+                : null,
+          };
+        });
+
+        setItems(historyItems);
+      } catch (caught) {
+        console.error(
+          "Erro ao carregar histórico da anotação:",
+          caught
+        );
+
+        if (active) {
+          setError(
+            "Não foi possível carregar o histórico desta anotação."
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [open, userId, note]);
+
+  if (!open || !note) return null;
 
   return (
     <div
       className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-2 p-md-3"
       style={{
-        zIndex: 1800,
-        background: "rgba(15,23,42,.52)",
+        zIndex: 2200,
+        background: "rgba(15,23,42,.58)",
         backdropFilter: "blur(5px)",
         overflowY: "auto",
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
       }}
     >
       <div
         className="bg-body w-100 my-auto shadow"
-        style={{ maxWidth: 900, borderRadius: 22, overflow: "hidden" }}
+        style={{
+          maxWidth: 820,
+          maxHeight: "90vh",
+          borderRadius: 22,
+          overflow: "hidden",
+        }}
       >
-        <div className="d-flex justify-content-between p-4 border-bottom">
-          <div>
-            <h4 className="fw-bold mb-1">
-              {note ? "Editar anotação" : "Nova anotação"}
-            </h4>
-            <small className="text-secondary">
-              Anotação, compromisso e checklist no mesmo lugar.
-            </small>
+        <div className="d-flex align-items-start justify-content-between gap-3 p-4 border-bottom">
+          <div style={{ minWidth: 0 }}>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="d-flex align-items-center justify-content-center"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  flexShrink: 0,
+                }}
+              >
+                <i className="bi bi-clock-history" />
+              </span>
+
+              <h4 className="fw-bold mb-0">
+                Histórico
+              </h4>
+            </div>
+
+            <p className="text-secondary mb-0 text-truncate">
+              {note.title || "Anotação sem título"}
+            </p>
           </div>
 
           <button
             type="button"
-            className="btn btn-light rounded-circle"
+            className="btn btn-light rounded-circle flex-shrink-0"
             onClick={onClose}
-            disabled={saving}
             title="Fechar"
+            style={{
+              width: 40,
+              height: 40,
+            }}
           >
             <i className="bi bi-x-lg" />
           </button>
         </div>
 
-        <form onSubmit={submit}>
-          <div className="p-4">
-            {err && <div className="alert alert-warning">{err}</div>}
+        <div
+          className="p-3 p-md-4"
+          style={{
+            overflowY: "auto",
+            maxHeight: "calc(90vh - 105px)",
+          }}
+        >
+          <div className="mb-4">
+            <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <span className="fw-semibold">
+                Versão atual
+              </span>
 
-            <label className="form-label fw-semibold">Título</label>
-            <input
-              className="form-control form-control-lg mb-3"
-              value={form.title}
-              onChange={(e) => set("title", e.target.value)}
-              placeholder="Ex.: Renovação do contrato"
-              autoFocus
-            />
-
-            <label className="form-label fw-semibold">Anotação</label>
-            <textarea
-              className="form-control mb-3"
-              rows={7}
-              value={form.content}
-              onChange={(e) => set("content", e.target.value)}
-              placeholder="Escreva tudo o que precisa lembrar..."
-              style={{ resize: "vertical" }}
-            />
-
-            <div className="row g-3">
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Categoria</label>
-
-                <div className="input-group">
-                  <select
-                    className="form-select"
-                    value={form.category}
-                    onChange={(e) => set("category", e.target.value)}
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary"
-                    onClick={() => setShowCat((current) => !current)}
-                    title="Nova categoria"
-                  >
-                    <i className="bi bi-plus-lg" />
-                  </button>
-                </div>
-
-                {showCat && (
-                  <div className="d-flex gap-2 mt-2">
-                    <input
-                      className="form-control form-control-sm"
-                      value={newCat}
-                      onChange={(e) => setNewCat(e.target.value)}
-                      placeholder="Nova categoria"
-                    />
-
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={async () => {
-                        const name = newCat.trim();
-                        if (!name) return;
-
-                        await onCreateCategory(name);
-                        set("category", name);
-                        setNewCat("");
-                        setShowCat(false);
-                      }}
-                    >
-                      <i className="bi bi-check-lg" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Prioridade</label>
-                <select
-                  className="form-select"
-                  value={form.priority}
-                  onChange={(e) =>
-                    set("priority", e.target.value as NotePriority)
-                  }
-                >
-                  {priorities.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-12">
-                <label className="form-label fw-semibold">Tags</label>
-                <input
-                  className="form-control"
-                  value={form.tagsText}
-                  onChange={(e) => set("tagsText", e.target.value)}
-                  placeholder="DETRAN, contrato, imóvel"
-                />
-              </div>
+              <span className="badge text-bg-primary">
+                Atual
+              </span>
             </div>
 
-            <div className="mt-4 p-3 border rounded-4">
-              <div className="fw-semibold mb-2">
-                <i className="bi bi-check2-square me-2" />
-                Checklist
+            <div className="border rounded-4 p-3 bg-body-tertiary">
+              <div className="fw-bold mb-1">
+                {note.title || "Sem título"}
               </div>
 
-              <div className="input-group mb-2">
-                <input
-                  className="form-control"
-                  value={checkText}
-                  onChange={(e) => setCheckText(e.target.value)}
-                  placeholder="Adicionar item"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCheck();
-                    }
+              {note.content ? (
+                <p
+                  className="mb-2 text-secondary"
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
                   }}
-                />
-
-                <button
-                  type="button"
-                  className="btn btn-outline-primary"
-                  onClick={addCheck}
                 >
-                  <i className="bi bi-plus-lg" />
-                </button>
-              </div>
+                  {note.content}
+                </p>
+              ) : (
+                <p className="mb-2 text-secondary fst-italic">
+                  Sem descrição
+                </p>
+              )}
 
-              {form.checklist.map((item, index) => (
-                <div
-                  className="d-flex align-items-center gap-2 py-1"
-                  key={item.id}
-                >
-                  <input
-                    className="form-check-input mt-0"
-                    type="checkbox"
-                    checked={item.done}
-                    onChange={(e) =>
-                      set(
-                        "checklist",
-                        form.checklist.map((current, currentIndex) =>
-                          currentIndex === index
-                            ? { ...current, done: e.target.checked }
-                            : current
-                        )
-                      )
-                    }
-                  />
+              <div className="d-flex flex-wrap gap-2 small">
+                <span className="badge bg-body border text-body">
+                  <i className="bi bi-folder2 me-1" />
+                  {note.category || "Sem categoria"}
+                </span>
 
-                  <span
-                    className="flex-grow-1"
-                    style={{
-                      textDecoration: item.done ? "line-through" : "none",
-                    }}
-                  >
-                    {item.text}
+                <span className="badge bg-body border text-body">
+                  {priorityLabel[note.priority]}
+                </span>
+
+                {note.date && (
+                  <span className="badge bg-body border text-body">
+                    <i className="bi bi-calendar3 me-1" />
+                    {formatDate(note.date)}
+                    {note.time ? ` às ${note.time}` : ""}
                   </span>
+                )}
 
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-link text-danger"
-                    onClick={() =>
-                      set(
-                        "checklist",
-                        form.checklist.filter(
-                          (_, currentIndex) => currentIndex !== index
-                        )
-                      )
-                    }
-                    title="Excluir item"
+                {(note.tags || []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="badge bg-body border text-body"
                   >
-                    <i className="bi bi-trash3" />
-                  </button>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <span className="fw-semibold">
+              Versões anteriores
+            </span>
+
+            {!loading && (
+              <span className="badge rounded-pill text-bg-light border">
+                {items.length}
+              </span>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" />
+              <div className="text-secondary small mt-2">
+                Carregando histórico...
+              </div>
+            </div>
+          ) : error ? (
+            <div className="alert alert-danger">
+              <i className="bi bi-exclamation-triangle me-2" />
+              {error}
+            </div>
+          ) : items.length === 0 ? (
+            <div
+              className="text-center p-5 border rounded-4 text-secondary"
+              style={{
+                borderStyle: "dashed",
+              }}
+            >
+              <i className="bi bi-clock-history fs-2 d-block mb-2" />
+              <div className="fw-semibold">
+                Ainda não há versões anteriores
+              </div>
+              <small>
+                Uma versão é salva antes de cada edição.
+              </small>
+            </div>
+          ) : (
+            <div className="d-grid gap-3">
+              {items.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="border rounded-4 p-3"
+                >
+                  <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+                    <div>
+                      <div className="fw-semibold">
+                        Versão {items.length - index}
+                      </div>
+
+                      <small className="text-secondary">
+                        Salva em {formatTimestamp(item.savedAt)}
+                      </small>
+                    </div>
+
+                    <span className="badge rounded-pill text-bg-light border">
+                      {priorityLabel[item.priority]}
+                    </span>
+                  </div>
+
+                  <div className="fw-bold mb-1">
+                    {item.title || "Sem título"}
+                  </div>
+
+                  {item.content ? (
+                    <p
+                      className="text-secondary mb-3"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {item.content}
+                    </p>
+                  ) : (
+                    <p className="text-secondary fst-italic mb-3">
+                      Sem descrição
+                    </p>
+                  )}
+
+                  <div className="d-flex flex-wrap gap-2 small">
+                    <span className="badge bg-body-tertiary border text-body">
+                      <i className="bi bi-folder2 me-1" />
+                      {item.category || "Sem categoria"}
+                    </span>
+
+                    {item.date && (
+                      <span className="badge bg-body-tertiary border text-body">
+                        <i className="bi bi-calendar3 me-1" />
+                        {formatDate(item.date)}
+                        {item.time ? ` às ${item.time}` : ""}
+                      </span>
+                    )}
+
+                    {item.tags.map((tag) => (
+                      <span
+                        key={`${item.id}-${tag}`}
+                        className="badge bg-body-tertiary border text-body"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+
+                    {item.checklist.length > 0 && (
+                      <span className="badge bg-body-tertiary border text-body">
+                        <i className="bi bi-check2-square me-1" />
+                        {
+                          item.checklist.filter(
+                            (check) => check.done
+                          ).length
+                        }
+                        /{item.checklist.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-
-            <div className="mt-4 p-3 border rounded-4 bg-body-tertiary">
-              <div className="form-check form-switch mb-3">
-                <input
-                  className="form-check-input"
-                  id="appointment"
-                  type="checkbox"
-                  checked={form.appointment}
-                  onChange={(e) => set("appointment", e.target.checked)}
-                />
-
-                <label
-                  className="form-check-label fw-semibold"
-                  htmlFor="appointment"
-                >
-                  <i className="bi bi-calendar-check me-2" />
-                  É um compromisso
-                </label>
-              </div>
-
-              <div className="row g-3">
-                <div className="col-md-3">
-                  <label className="form-label">Data</label>
-                  <input
-                    className="form-control"
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => {
-                      set("date", e.target.value);
-                      if (e.target.value) set("appointment", true);
-                    }}
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label">Hora</label>
-                  <input
-                    className="form-control"
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => set("time", e.target.value)}
-                    disabled={!form.date}
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label">Repetir</label>
-                  <select
-                    className="form-select"
-                    value={form.recurrence}
-                    onChange={(e) =>
-                      set("recurrence", e.target.value as Recurrence)
-                    }
-                    disabled={!form.date}
-                  >
-                    {recurrences.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label">Lembrar</label>
-                  <select
-                    className="form-select"
-                    value={form.reminderMinutes ?? ""}
-                    onChange={(e) =>
-                      set(
-                        "reminderMinutes",
-                        e.target.value === "" ? null : Number(e.target.value)
-                      )
-                    }
-                    disabled={!form.date}
-                  >
-                    <option value="">Sem lembrete</option>
-                    <option value="0">Na hora</option>
-                    <option value="15">15 min antes</option>
-                    <option value="60">1 hora antes</option>
-                    <option value="1440">1 dia antes</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="d-flex flex-wrap gap-3 mt-4">
-              {[
-                ["favorite", "bi-star", "Favorita"],
-                ["pinned", "bi-pin-angle", "Fixar no topo"],
-                ["completed", "bi-check-circle", "Concluída"],
-                ["archived", "bi-archive", "Arquivada"],
-              ].map(([field, icon, label]) => {
-                const key = field as
-                  | "favorite"
-                  | "pinned"
-                  | "completed"
-                  | "archived";
-
-                return (
-                  <div className="form-check" key={field}>
-                    <input
-                      id={field}
-                      className="form-check-input"
-                      type="checkbox"
-                      checked={form[key]}
-                      onChange={(e) => set(key, e.target.checked)}
-                    />
-                    <label className="form-check-label" htmlFor={field}>
-                      <i className={`bi ${icon} me-1`} />
-                      {label}
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="d-flex justify-content-end gap-2 p-4 border-top">
-            <button
-              type="button"
-              className="btn btn-light"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
-
-            <button className="btn btn-primary px-4" disabled={saving}>
-              {saving ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <i className="bi bi-check2-circle me-2" />
-                  Salvar
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );
