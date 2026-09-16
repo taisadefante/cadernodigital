@@ -12,7 +12,7 @@ import { addRecurrence,todayIso } from "@/lib/date";
 import type { Category,Tag,Note,NoteFilters,NoteFormData } from "@/types/note";
 import NoteCard from "@/components/NoteCard";import NoteModal from "@/components/NoteModal";import ConfirmModal from "@/components/ConfirmModal";import FiltersPanel from "@/components/FiltersPanel";import CalendarView from "@/components/CalendarView";import ProfileModal from "@/components/ProfileModal";import HistoryModal from "@/components/HistoryModal";import ReminderManager from "@/components/ReminderManager";
 type Section="notes"|"appointments"|"favorites"|"calendar";
-const defaults:NoteFilters={search:"",priority:"all",category:"all",dateFrom:"",dateTo:"",appointment:"all",status:"all",favoritesOnly:false,sort:"updatedDesc"};
+const defaults:NoteFilters={search:"",priority:"all",category:"all",tag:"all",dateFrom:"",dateTo:"",appointment:"all",status:"all",favoritesOnly:false,sort:"updatedDesc"};
 function message(e:unknown){if(e instanceof FirebaseError&&e.code==="permission-denied")return"Sem permissão. Confira as regras do Firebase.";return"Ocorreu um erro. Tente novamente."}
 async function deleteNoteSubcollection(
  userId:string,
@@ -94,6 +94,7 @@ return()=>{unsub();uc();ut()}},[user]);
  useEffect(()=>{if(!user||loading)return;const existing=new Set(customTags.map(tag=>tag.name.trim().toLowerCase()));const names=Array.from(new Set(notes.flatMap(note=>note.tags||[]).map(name=>name.trim()).filter(Boolean))).filter(name=>!existing.has(name.toLowerCase()));if(!names.length)return;void Promise.all(names.map(name=>addDoc(collection(db,"users",user.uid,"tags"),{name,createdAt:serverTimestamp()})))},[user,loading,notes,customTags]);
  useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),3500);return()=>clearTimeout(id)},[toast]);
  const cats=useMemo(()=>customCats.map(x=>x.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR")),[customCats]);
+ const tagOptions=useMemo(()=>customTags.map(x=>x.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR")),[customTags]);
  const categoryCounts=useMemo(()=>notes.reduce<Record<string,number>>((acc,note)=>{const name=(note.category||"").trim();if(name)acc[name]=(acc[name]||0)+1;return acc},{}),[notes]);
  const tagCounts=useMemo(()=>notes.reduce<Record<string,number>>((acc,note)=>{(note.tags||[]).forEach(name=>{const clean=name.trim();if(clean)acc[clean]=(acc[clean]||0)+1});return acc},{}),[notes]);
  const visible=useMemo(()=>filterNotes(notes,filters,section),[notes,filters,section]); const today=todayIso(); const active=notes.filter(n=>!n.deletedAt); const stats={total:active.length,appointments:active.filter(n=>n.appointment).length,today:active.filter(n=>n.date===today&&!n.completed).length,urgent:active.filter(n=>n.priority==="urgent"&&!n.completed).length};
@@ -112,8 +113,8 @@ return()=>{unsub();uc();ut()}},[user]);
  async function deleteCategory(category:Category){if(!user)return;await updateCategoryNotes(category.name,"");await deleteDoc(doc(db,"users",user.uid,"categories",category.id));setFilters(current=>current.category===category.name?{...current,category:"all"}:current)}
  async function createTag(name:string){if(!user)return;const clean=name.trim();if(!clean)throw new Error("Informe o nome da tag.");if(customTags.some(tag=>tag.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await addDoc(collection(db,"users",user.uid,"tags"),{name:clean,createdAt:serverTimestamp()})}
  async function updateTagNotes(oldName:string,newName:string|null){if(!user)return;const affected=notes.filter(note=>(note.tags||[]).includes(oldName));for(let index=0;index<affected.length;index+=400){const batch=writeBatch(db);affected.slice(index,index+400).forEach(note=>{const next=(note.tags||[]).flatMap(tag=>tag===oldName?(newName?[newName]:[]):[tag]);batch.update(doc(db,"users",user.uid,"notes",note.id),{tags:Array.from(new Set(next)),updatedAt:serverTimestamp()})});await batch.commit()}}
- async function renameTag(tag:Tag,newName:string){if(!user)return;const clean=newName.trim();if(!clean)throw new Error("Informe o nome da tag.");if(clean===tag.name)return;if(customTags.some(item=>item.id!==tag.id&&item.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await updateTagNotes(tag.name,clean);await updateDoc(doc(db,"users",user.uid,"tags",tag.id),{name:clean,updatedAt:serverTimestamp()})}
- async function deleteTag(tag:Tag){if(!user)return;await updateTagNotes(tag.name,null);await deleteDoc(doc(db,"users",user.uid,"tags",tag.id))}
+ async function renameTag(tag:Tag,newName:string){if(!user)return;const clean=newName.trim();if(!clean)throw new Error("Informe o nome da tag.");if(clean===tag.name)return;if(customTags.some(item=>item.id!==tag.id&&item.name.trim().toLowerCase()===clean.toLowerCase()))throw new Error("Já existe uma tag com esse nome.");await updateTagNotes(tag.name,clean);await updateDoc(doc(db,"users",user.uid,"tags",tag.id),{name:clean,updatedAt:serverTimestamp()});setFilters(current=>current.tag===tag.name?{...current,tag:clean}:current)}
+ async function deleteTag(tag:Tag){if(!user)return;await updateTagNotes(tag.name,null);await deleteDoc(doc(db,"users",user.uid,"tags",tag.id));setFilters(current=>current.tag===tag.name?{...current,tag:"all"}:current)}
  async function notifications(){if(typeof Notification==="undefined"){setToast({type:"warning",text:"Seu navegador não suporta notificações."});return}const p=await Notification.requestPermission();setToast({type:p==="granted"?"success":"warning",text:p==="granted"?"Lembretes ativados neste navegador.":"Permissão de notificações não concedida."})}
 
  if(authLoading||!user){
@@ -886,6 +887,7 @@ return()=>{unsub();uc();ut()}},[user]);
          open={filtersOpen}
          filters={filters}
          categories={cats}
+         tags={tagOptions}
          onChange={setFilters}
          onClear={()=>setFilters(defaults)}
         />

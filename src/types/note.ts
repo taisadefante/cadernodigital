@@ -62,6 +62,7 @@ export interface NoteFilters {
   search: string;
   priority: "all" | NotePriority;
   category: "all" | string;
+  tag: "all" | string;
   dateFrom: string;
   dateTo: string;
   appointment: "all" | "withDate" | "withoutDate";

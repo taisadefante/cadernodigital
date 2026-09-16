@@ -9,16 +9,21 @@ interface Props {
   onEdit: (note: Note) => void;
   onDelete: (note: Note) => void;
   onPatch: (note: Note, data: Partial<Note>) => Promise<void>;
-  onPdf: (note: Note) => void;
+  onPdf?: (note: Note) => void;
   onHistory: (note: Note) => void;
 }
 
 const priorityStyle: Record<
   NotePriority,
-  { label: string; border: string; color: string; background: string }
+  {
+    label: string;
+    border: string;
+    color: string;
+    background: string;
+  }
 > = {
   none: {
-    label: "Sem prioridade",
+    label: "",
     border: "#cbd5e1",
     color: "#64748b",
     background: "transparent",
@@ -49,32 +54,31 @@ const priorityStyle: Record<
   },
 };
 
-function formatDate(value: string | null): string {
-  if (!value) return "Sem data";
+function formatDate(value: string): string {
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
 }
 
 function recurrenceLabel(value: Note["recurrence"]): string {
   const labels: Record<string, string> = {
-    none: "Não repetir",
     daily: "Todos os dias",
     weekly: "Toda semana",
     monthly: "Todo mês",
     yearly: "Todo ano",
   };
 
-  return labels[value || "none"] || "Não repetir";
+  return labels[value] || "";
 }
 
-function reminderLabel(value: number | null): string {
-  if (value === null || value === undefined) return "Sem lembrete";
+function reminderLabel(value: number): string {
   if (value === 0) return "Na hora";
   if (value === 15) return "15 min antes";
   if (value === 60) return "1 hora antes";
   if (value === 1440) return "1 dia antes";
 
-  if (value < 60) return `${value} min antes`;
+  if (value < 60) {
+    return `${value} min antes`;
+  }
 
   if (value % 1440 === 0) {
     const days = value / 1440;
@@ -90,69 +94,104 @@ function reminderLabel(value: number | null): string {
 }
 
 function buildCopyText(note: Note): string {
-  const priority = priorityStyle[note.priority].label;
-
   const lines: string[] = [];
 
-  lines.push(`📝 ${note.title || "Sem título"}`);
-  lines.push("");
+  if (note.title?.trim()) {
+    lines.push(`📝 ${note.title.trim()}`);
+  }
 
-  lines.push(`📁 Categoria: ${note.category || "Geral"}`);
-  lines.push(`⚑ Prioridade: ${priority}`);
+  if (note.category?.trim()) {
+    lines.push(`📁 Categoria: ${note.category.trim()}`);
+  }
+
+  if (note.priority !== "none") {
+    lines.push(
+      `⚑ Prioridade: ${priorityStyle[note.priority].label}`
+    );
+  }
 
   if (note.appointment) {
-    lines.push("📌 Tipo: Compromisso");
+    lines.push("📌 Compromisso");
   }
 
   if (note.date) {
     lines.push(
-      `📅 Data: ${formatDate(note.date)}${note.time ? ` às ${note.time}` : ""}`
+      `📅 ${formatDate(note.date)}${
+        note.time ? ` às ${note.time}` : ""
+      }`
     );
   }
 
-  if (note.recurrence && note.recurrence !== "none") {
-    lines.push(`🔁 Repetição: ${recurrenceLabel(note.recurrence)}`);
+  if (
+    note.recurrence &&
+    note.recurrence !== "none"
+  ) {
+    lines.push(
+      `🔁 ${recurrenceLabel(note.recurrence)}`
+    );
   }
 
-  if (note.reminderMinutes !== null && note.reminderMinutes !== undefined) {
-    lines.push(`🔔 Lembrete: ${reminderLabel(note.reminderMinutes)}`);
+  if (
+    note.reminderMinutes !== null &&
+    note.reminderMinutes !== undefined
+  ) {
+    lines.push(
+      `🔔 ${reminderLabel(note.reminderMinutes)}`
+    );
   }
 
-  lines.push(`✅ Status: ${note.completed ? "Concluída" : "Pendente"}`);
+  if (note.completed) {
+    lines.push("✅ Concluída");
+  }
 
-  if (note.favorite) lines.push("⭐ Favorita: Sim");
-  if (note.pinned) lines.push("📌 Fixada no topo: Sim");
+  if (note.favorite) {
+    lines.push("⭐ Favorita");
+  }
+
+  if (note.pinned) {
+    lines.push("📌 Fixada no topo");
+  }
 
   if (note.content?.trim()) {
-    lines.push("");
-    lines.push("📄 Anotação:");
+    if (lines.length) lines.push("");
     lines.push(note.content.trim());
   }
 
   if (note.checklist?.length) {
-    lines.push("");
+    if (lines.length) lines.push("");
     lines.push("☑️ Checklist:");
 
     note.checklist.forEach((item) => {
-      lines.push(`${item.done ? "☑" : "☐"} ${item.text}`);
+      lines.push(
+        `${item.done ? "☑" : "☐"} ${item.text}`
+      );
     });
   }
 
   if (note.tags?.length) {
-    lines.push("");
-    lines.push(`🏷️ ${note.tags.map((tag) => `#${tag}`).join(" ")}`);
+    if (lines.length) lines.push("");
+    lines.push(
+      `🏷️ ${note.tags
+        .map((tag) => `#${tag}`)
+        .join(" ")}`
+    );
   }
 
   return lines.join("\n");
 }
 
 async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard && window.isSecureContext) {
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
     await navigator.clipboard.writeText(text);
     return;
   }
 
-  const textarea = document.createElement("textarea");
+  const textarea =
+    document.createElement("textarea");
+
   textarea.value = text;
   textarea.style.position = "fixed";
   textarea.style.opacity = "0";
@@ -160,15 +199,19 @@ async function copyText(text: string): Promise<void> {
   textarea.style.left = "-9999px";
 
   document.body.appendChild(textarea);
+
   textarea.focus();
   textarea.select();
 
-  const copied = document.execCommand("copy");
+  const copied =
+    document.execCommand("copy");
 
   textarea.remove();
 
   if (!copied) {
-    throw new Error("Não foi possível copiar a anotação.");
+    throw new Error(
+      "Não foi possível copiar a anotação."
+    );
   }
 }
 
@@ -177,89 +220,161 @@ export default function NoteCard({
   onEdit,
   onDelete,
   onPatch,
-  onPdf,
   onHistory,
 }: Props) {
-  const priority = priorityStyle[note.priority];
-  const [copied, setCopied] = useState(false);
+  const priority =
+    priorityStyle[note.priority];
+
+  const [copied, setCopied] =
+    useState(false);
 
   const checklistDone =
-    note.checklist?.filter((item) => item.done).length ?? 0;
+    note.checklist?.filter(
+      (item) => item.done
+    ).length ?? 0;
+
+  const hasTitle =
+    Boolean(note.title?.trim());
+
+  const hasContent =
+    Boolean(note.content?.trim());
+
+  const hasCategory =
+    Boolean(note.category?.trim());
+
+  const hasPriority =
+    note.priority !== "none";
+
+  const hasRecurrence =
+    Boolean(
+      note.recurrence &&
+        note.recurrence !== "none"
+    );
+
+  const hasReminder =
+    note.reminderMinutes !== null &&
+    note.reminderMinutes !== undefined;
+
+  const hasChecklist =
+    Boolean(note.checklist?.length);
 
   async function handleCopy() {
     try {
-      await copyText(buildCopyText(note));
+      await copyText(
+        buildCopyText(note)
+      );
+
       setCopied(true);
 
       window.setTimeout(() => {
         setCopied(false);
       }, 1800);
     } catch (error) {
-      console.error("Erro ao copiar anotação:", error);
+      console.error(
+        "Erro ao copiar anotação:",
+        error
+      );
     }
   }
 
   return (
     <article
-      className="px-3 px-lg-4 py-3"
+      className="px-3 px-xl-4 py-3"
       role="button"
       tabIndex={0}
-      onClick={() => onEdit(note)}
+      onClick={() =>
+        onEdit(note)
+      }
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
           event.preventDefault();
           onEdit(note);
         }
       }}
       title="Clique para abrir esta anotação"
       style={{
-        borderBottom: "1px solid var(--bs-border-color)",
-        borderLeft: `4px solid ${priority.border}`,
-        background: priority.background,
-        opacity: note.completed ? 0.78 : 1,
+        borderBottom:
+          "1px solid var(--bs-border-color)",
+
+        borderLeft: `4px solid ${
+          hasPriority
+            ? priority.border
+            : "#cbd5e1"
+        }`,
+
+        background: hasPriority
+          ? priority.background
+          : "transparent",
+
+        opacity:
+          note.completed
+            ? 0.78
+            : 1,
+
         cursor: "pointer",
-        transition: "background-color .15s ease, box-shadow .15s ease",
+
+        transition:
+          "background-color .15s ease, box-shadow .15s ease",
+
         outline: "none",
       }}
     >
       <div className="row gx-2 gy-3 align-items-center">
+
+        {/* ANOTAÇÃO */}
         <div className="col-12 col-xl-4">
-          <div className="d-flex align-items-center flex-wrap gap-2 mb-1">
-            <strong
-              className="text-truncate"
-              style={{
-                maxWidth: "100%",
-                fontSize: 15,
-                textDecoration: note.completed ? "line-through" : "none",
-              }}
-              title={note.title || "Sem título"}
-            >
-              {note.title || "Sem título"}
-            </strong>
 
-            {note.pinned && (
-              <i
-                className="bi bi-pin-angle-fill text-primary"
-                title="Fixada no topo"
-              />
-            )}
+          {(hasTitle ||
+            note.pinned ||
+            note.favorite ||
+            note.appointment) && (
+            <div className="d-flex align-items-center flex-wrap gap-2 mb-1">
 
-            {note.favorite && (
-              <i
-                className="bi bi-star-fill text-warning"
-                title="Favorita"
-              />
-            )}
+              {hasTitle && (
+                <strong
+                  className="text-truncate"
+                  style={{
+                    maxWidth: "100%",
+                    fontSize: 15,
 
-            {note.appointment && (
-              <i
-                className="bi bi-calendar-check text-primary"
-                title="Compromisso"
-              />
-            )}
-          </div>
+                    textDecoration:
+                      note.completed
+                        ? "line-through"
+                        : "none",
+                  }}
+                  title={note.title}
+                >
+                  {note.title}
+                </strong>
+              )}
 
-          {note.content ? (
+              {note.pinned && (
+                <i
+                  className="bi bi-pin-angle-fill text-primary"
+                  title="Fixada no topo"
+                />
+              )}
+
+              {note.favorite && (
+                <i
+                  className="bi bi-star-fill text-warning"
+                  title="Favorita"
+                />
+              )}
+
+              {note.appointment && (
+                <i
+                  className="bi bi-calendar-check text-primary"
+                  title="Compromisso"
+                />
+              )}
+            </div>
+          )}
+
+          {hasContent && (
             <div
               className="text-secondary"
               style={{
@@ -267,75 +382,105 @@ export default function NoteCard({
                 whiteSpace: "pre-wrap",
                 display: "-webkit-box",
                 WebkitLineClamp: 3,
-                WebkitBoxOrient: "vertical",
+                WebkitBoxOrient:
+                  "vertical",
                 overflow: "hidden",
               }}
               title={note.content}
             >
               {note.content}
             </div>
-          ) : (
-            <div className="text-secondary small fst-italic">
-              Sem descrição
-            </div>
           )}
 
           {note.tags?.length > 0 && (
             <div className="d-flex gap-1 flex-wrap mt-2">
-              {note.tags.map((tag) => (
-                <span
-                  className="badge rounded-pill bg-body text-secondary border"
-                  key={tag}
-                >
-                  #{tag}
-                </span>
-              ))}
+              {note.tags.map(
+                (tag) => (
+                  <span
+                    className="badge rounded-pill bg-body text-secondary border"
+                    key={tag}
+                  >
+                    #{tag}
+                  </span>
+                )
+              )}
             </div>
           )}
         </div>
 
+        {/* CATEGORIA / PRIORIDADE */}
         <div className="col-6 col-md-4 col-xl-2 text-xl-center">
+
           <div className="d-flex flex-column gap-2 align-items-xl-center">
-            <span className="text-break" style={{ fontSize: 13 }}>
-              <i className="bi bi-folder2 me-1 text-secondary" />
-              {note.category || "Geral"}
-            </span>
 
-            <span
-              className="d-inline-flex align-items-center gap-1"
-              style={{
-                color: priority.color,
-                fontSize: 12,
-              }}
-            >
+            {hasCategory && (
               <span
+                className="text-break"
                 style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: priority.border,
-                  display: "inline-block",
+                  fontSize: 13,
                 }}
-              />
-              {priority.label}
-            </span>
+              >
+                <i className="bi bi-folder2 me-1 text-secondary" />
+                {note.category}
+              </span>
+            )}
 
-            <span className="small text-secondary">
-              <i className="bi bi-check2-circle me-1" />
-              {note.completed ? "Concluída" : "Pendente"}
-            </span>
+            {hasPriority && (
+              <span
+                className="d-inline-flex align-items-center gap-1"
+                style={{
+                  color:
+                    priority.color,
+
+                  fontSize: 12,
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius:
+                      "50%",
+
+                    background:
+                      priority.border,
+
+                    display:
+                      "inline-block",
+                  }}
+                />
+
+                {priority.label}
+              </span>
+            )}
+
+            {note.completed && (
+              <span className="small text-success">
+                <i className="bi bi-check2-circle me-1" />
+                Concluída
+              </span>
+            )}
           </div>
         </div>
 
+        {/* DATA */}
         <div className="col-6 col-md-4 col-xl-2 text-xl-center">
+
           <div
             className="d-flex flex-column gap-2 align-items-xl-center"
-            style={{ fontSize: 13 }}
+            style={{
+              fontSize: 13,
+            }}
           >
-            <span>
-              <i className="bi bi-calendar3 me-1 text-secondary" />
-              {formatDate(note.date)}
-            </span>
+
+            {note.date && (
+              <span>
+                <i className="bi bi-calendar3 me-1 text-secondary" />
+                {formatDate(
+                  note.date
+                )}
+              </span>
+            )}
 
             {note.time && (
               <span>
@@ -353,63 +498,75 @@ export default function NoteCard({
           </div>
         </div>
 
+        {/* STATUS / DADOS COMPLEMENTARES */}
         <div className="col-12 col-md-4 col-xl-2 text-xl-center">
+
           <div className="d-flex flex-column gap-2 small align-items-xl-center">
-            {note.recurrence && note.recurrence !== "none" ? (
+
+            {hasRecurrence && (
               <span>
                 <i className="bi bi-arrow-repeat me-1 text-info" />
-                {recurrenceLabel(note.recurrence)}
-              </span>
-            ) : (
-              <span className="text-secondary">
-                <i className="bi bi-arrow-repeat me-1" />
-                Não repetir
+                {recurrenceLabel(
+                  note.recurrence
+                )}
               </span>
             )}
 
-            {note.reminderMinutes !== null &&
-            note.reminderMinutes !== undefined ? (
+            {hasReminder && (
               <span>
                 <i className="bi bi-bell me-1 text-warning" />
-                {reminderLabel(note.reminderMinutes)}
-              </span>
-            ) : (
-              <span className="text-secondary">
-                <i className="bi bi-bell-slash me-1" />
-                Sem lembrete
+                {reminderLabel(
+                  note.reminderMinutes!
+                )}
               </span>
             )}
 
-            {note.checklist?.length > 0 ? (
+            {hasChecklist && (
               <span>
                 <i className="bi bi-check2-square me-1 text-success" />
-                Checklist {checklistDone}/{note.checklist.length}
-              </span>
-            ) : (
-              <span className="text-secondary">
-                <i className="bi bi-check2-square me-1" />
-                Sem checklist
+
+                Checklist{" "}
+                {checklistDone}/
+                {note.checklist.length}
               </span>
             )}
           </div>
         </div>
 
+        {/* AÇÕES */}
         <div className="col-12 col-xl-2">
+
           <div
             className="d-flex justify-content-center align-items-center gap-1 flex-wrap"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
+
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+
+            onKeyDown={(event) =>
+              event.stopPropagation()
+            }
           >
             <button
               className={`btn btn-sm ${
-                note.completed ? "btn-success" : "btn-outline-success"
+                note.completed
+                  ? "btn-success"
+                  : "btn-outline-success"
               }`}
               onClick={() =>
-                void onPatch(note, {
-                  completed: !note.completed,
-                })
+                void onPatch(
+                  note,
+                  {
+                    completed:
+                      !note.completed,
+                  }
+                )
               }
-              style={{ width: 32, height: 32, padding: 0 }}
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title={
                 note.completed
                   ? "Marcar como pendente"
@@ -427,23 +584,43 @@ export default function NoteCard({
 
             <button
               className={`btn btn-sm ${
-                copied ? "btn-success" : "btn-light border"
+                copied
+                  ? "btn-success"
+                  : "btn-light border"
               }`}
-              onClick={() => void handleCopy()}
-              style={{ width: 32, height: 32, padding: 0 }}
-              title={copied ? "Copiado!" : "Copiar anotação"}
+              onClick={() =>
+                void handleCopy()
+              }
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
+              title={
+                copied
+                  ? "Copiado!"
+                  : "Copiar anotação"
+              }
             >
               <i
                 className={`bi ${
-                  copied ? "bi-check2" : "bi-copy"
+                  copied
+                    ? "bi-check2"
+                    : "bi-copy"
                 }`}
               />
             </button>
 
             <button
               className="btn btn-sm btn-light border"
-              onClick={() => onHistory(note)}
-              style={{ width: 32, height: 32, padding: 0 }}
+              onClick={() =>
+                onHistory(note)
+              }
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title="Histórico"
             >
               <i className="bi bi-clock-history" />
@@ -456,11 +633,19 @@ export default function NoteCard({
                   : "btn-light border"
               }`}
               onClick={() =>
-                void onPatch(note, {
-                  favorite: !note.favorite,
-                })
+                void onPatch(
+                  note,
+                  {
+                    favorite:
+                      !note.favorite,
+                  }
+                )
               }
-              style={{ width: 32, height: 32, padding: 0 }}
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title="Favorito"
             >
               <i
@@ -474,8 +659,14 @@ export default function NoteCard({
 
             <button
               className="btn btn-sm btn-light border"
-              onClick={() => onEdit(note)}
-              style={{ width: 32, height: 32, padding: 0 }}
+              onClick={() =>
+                onEdit(note)
+              }
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title="Editar"
             >
               <i className="bi bi-pencil-square" />
@@ -483,8 +674,14 @@ export default function NoteCard({
 
             <button
               className="btn btn-sm btn-outline-danger"
-              onClick={() => onDelete(note)}
-              style={{ width: 32, height: 32, padding: 0 }}
+              onClick={() =>
+                onDelete(note)
+              }
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title="Excluir definitivamente"
             >
               <i className="bi bi-trash3" />
@@ -493,38 +690,46 @@ export default function NoteCard({
         </div>
       </div>
 
-      {note.checklist?.length > 0 && (
+      {hasChecklist && (
         <div className="mt-3 pt-3 border-top">
+
           <div className="d-flex align-items-center gap-2 flex-wrap">
+
             <span className="small fw-semibold">
               <i className="bi bi-check2-square me-1" />
               Checklist:
             </span>
 
-            {note.checklist.map((item) => (
-              <span
-                key={item.id}
-                className={`badge rounded-pill ${
-                  item.done
-                    ? "text-bg-success"
-                    : "bg-body text-secondary border"
-                }`}
-                style={{
-                  textDecoration: item.done
-                    ? "line-through"
-                    : "none",
-                }}
-              >
-                <i
-                  className={`bi ${
+            {note.checklist.map(
+              (item) => (
+                <span
+                  key={item.id}
+
+                  className={`badge rounded-pill ${
                     item.done
-                      ? "bi-check-circle-fill"
-                      : "bi-circle"
-                  } me-1`}
-                />
-                {item.text}
-              </span>
-            ))}
+                      ? "text-bg-success"
+                      : "bg-body text-secondary border"
+                  }`}
+
+                  style={{
+                    textDecoration:
+                      item.done
+                        ? "line-through"
+                        : "none",
+                  }}
+                >
+                  <i
+                    className={`bi ${
+                      item.done
+                        ? "bi-check-circle-fill"
+                        : "bi-circle"
+                    } me-1`}
+                  />
+
+                  {item.text}
+                </span>
+              )
+            )}
           </div>
         </div>
       )}

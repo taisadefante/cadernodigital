@@ -88,6 +88,14 @@ export function filterNotes(
         return false;
       }
 
+
+      if (
+        filters.tag !== "all" &&
+        !(note.tags || []).includes(filters.tag)
+      ) {
+        return false;
+      }
+
       if (
         filters.dateFrom &&
         (!note.date || note.date < filters.dateFrom)

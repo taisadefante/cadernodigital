@@ -1,3 +1,375 @@
 "use client";
-import type { NoteFilters,NotePriority } from "@/types/note";
-export default function FiltersPanel({open,filters,categories,onChange,onClear}:{open:boolean;filters:NoteFilters;categories:string[];onChange:(x:NoteFilters)=>void;onClear:()=>void}){if(!open)return null; const u=<K extends keyof NoteFilters>(k:K,v:NoteFilters[K])=>onChange({...filters,[k]:v});return <div className="bg-body p-3 p-md-4 mb-4" style={{border:"1px solid #e2e8f0",borderRadius:18}}><div className="d-flex justify-content-between mb-3"><strong><i className="bi bi-sliders me-2 text-primary"/>Filtros avançados</strong><button className="btn btn-sm btn-link text-decoration-none" onClick={onClear}>Limpar</button></div><div className="row g-3"><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">Prioridade</label><select className="form-select" value={filters.priority} onChange={e=>u("priority",e.target.value as "all"|NotePriority)}><option value="all">Todas</option><option value="none">Sem prioridade</option><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option><option value="urgent">Urgente</option></select></div><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">Categoria</label><select className="form-select" value={filters.category} onChange={e=>u("category",e.target.value)}><option value="all">Todas</option>{categories.map(c=><option key={c}>{c}</option>)}</select></div><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">Data</label><select className="form-select" value={filters.appointment} onChange={e=>u("appointment",e.target.value as NoteFilters["appointment"])}><option value="all">Todos</option><option value="withDate">Com data</option><option value="withoutDate">Sem data</option></select></div><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">Status</label><select className="form-select" value={filters.status} onChange={e=>u("status",e.target.value as NoteFilters["status"])}><option value="all">Todos</option><option value="pending">Pendentes</option><option value="completed">Concluídos</option></select></div><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">De</label><input type="date" className="form-control" value={filters.dateFrom} onChange={e=>u("dateFrom",e.target.value)}/></div><div className="col-md-4 col-xl-3"><label className="form-label small fw-semibold">Até</label><input type="date" className="form-control" value={filters.dateTo} onChange={e=>u("dateTo",e.target.value)}/></div><div className="col-md-6 col-xl-3"><label className="form-label small fw-semibold">Ordenar</label><select className="form-select" value={filters.sort} onChange={e=>u("sort",e.target.value as NoteFilters["sort"])}><option value="updatedDesc">Atualizadas recentemente</option><option value="createdDesc">Criadas recentemente</option><option value="dateAsc">Próxima data</option><option value="priorityDesc">Maior prioridade</option><option value="titleAsc">Título A-Z</option></select></div><div className="col-md-6 col-xl-3 d-flex align-items-end"><div className="form-check form-switch mb-2"><input id="favFilter" className="form-check-input" type="checkbox" checked={filters.favoritesOnly} onChange={e=>u("favoritesOnly",e.target.checked)}/><label className="form-check-label" htmlFor="favFilter">Somente favoritos</label></div></div></div></div>}
+
+import type {
+  NoteFilters,
+  NotePriority,
+} from "@/types/note";
+
+interface Props {
+  open: boolean;
+  filters: NoteFilters;
+  categories: string[];
+  tags: string[];
+  onChange: (
+    filters: NoteFilters
+  ) => void;
+  onClear: () => void;
+}
+
+export default function FiltersPanel({
+  open,
+  filters,
+  categories,
+  tags,
+  onChange,
+  onClear,
+}: Props) {
+  if (!open) return null;
+
+  function setFilter<
+    K extends keyof NoteFilters
+  >(
+    key: K,
+    value: NoteFilters[K]
+  ) {
+    onChange({
+      ...filters,
+      [key]: value,
+    });
+  }
+
+  const hasActiveFilters =
+    filters.priority !== "all" ||
+    filters.category !== "all" ||
+    filters.tag !== "all" ||
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo) ||
+    filters.appointment !== "all" ||
+    filters.status !== "all" ||
+    filters.favoritesOnly ||
+    filters.sort !== "updatedDesc";
+
+  return (
+    <div
+      className="bg-body border p-3 p-lg-4"
+      style={{
+        borderRadius: 16,
+
+        boxShadow:
+          "0 5px 18px rgba(15,23,42,.04)",
+      }}
+    >
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+
+        <div>
+          <div className="fw-bold">
+            Filtros
+          </div>
+
+          <small className="text-secondary">
+            Refine as anotações exibidas.
+          </small>
+        </div>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onClear}
+          >
+            <i className="bi bi-x-circle me-2" />
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      <div className="row g-3">
+
+        {/* CATEGORIA */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Categoria
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.category}
+            onChange={(event) =>
+              setFilter(
+                "category",
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Todas
+            </option>
+
+            {categories.map(
+              (category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        {/* TAG */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Tag
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.tag}
+            onChange={(event) =>
+              setFilter(
+                "tag",
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Todas
+            </option>
+
+            {tags.map(
+              (tag) => (
+                <option
+                  key={tag}
+                  value={tag}
+                >
+                  #{tag}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        {/* PRIORIDADE */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Prioridade
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.priority}
+            onChange={(event) =>
+              setFilter(
+                "priority",
+                event.target
+                  .value as
+                  | "all"
+                  | NotePriority
+              )
+            }
+          >
+            <option value="all">
+              Todas
+            </option>
+
+            <option value="low">
+              Baixa
+            </option>
+
+            <option value="medium">
+              Média
+            </option>
+
+            <option value="high">
+              Alta
+            </option>
+
+            <option value="urgent">
+              Urgente
+            </option>
+          </select>
+        </div>
+
+        {/* STATUS */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Status
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.status}
+            onChange={(event) =>
+              setFilter(
+                "status",
+                event.target
+                  .value as
+                  NoteFilters["status"]
+              )
+            }
+          >
+            <option value="all">
+              Todos
+            </option>
+
+            <option value="pending">
+              Pendentes
+            </option>
+
+            <option value="completed">
+              Concluídas
+            </option>
+          </select>
+        </div>
+
+        {/* DATA INICIAL */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Data inicial
+          </label>
+
+          <input
+            type="date"
+            className="form-control"
+            value={filters.dateFrom}
+            onChange={(event) =>
+              setFilter(
+                "dateFrom",
+                event.target.value
+              )
+            }
+          />
+        </div>
+
+        {/* DATA FINAL */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Data final
+          </label>
+
+          <input
+            type="date"
+            className="form-control"
+            value={filters.dateTo}
+            onChange={(event) =>
+              setFilter(
+                "dateTo",
+                event.target.value
+              )
+            }
+          />
+        </div>
+
+        {/* COMPROMISSO */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Data / compromisso
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.appointment}
+            onChange={(event) =>
+              setFilter(
+                "appointment",
+                event.target
+                  .value as
+                  NoteFilters["appointment"]
+              )
+            }
+          >
+            <option value="all">
+              Todos
+            </option>
+
+            <option value="withDate">
+              Com data
+            </option>
+
+            <option value="withoutDate">
+              Sem data
+            </option>
+          </select>
+        </div>
+
+        {/* ORDENAÇÃO */}
+        <div className="col-12 col-md-6 col-xl-3">
+
+          <label className="form-label small fw-semibold">
+            Ordenar
+          </label>
+
+          <select
+            className="form-select"
+            value={filters.sort}
+            onChange={(event) =>
+              setFilter(
+                "sort",
+                event.target
+                  .value as
+                  NoteFilters["sort"]
+              )
+            }
+          >
+            <option value="updatedDesc">
+              Atualizadas recentemente
+            </option>
+
+            <option value="createdDesc">
+              Criadas recentemente
+            </option>
+
+            <option value="dateAsc">
+              Data mais próxima
+            </option>
+
+            <option value="priorityDesc">
+              Maior prioridade
+            </option>
+
+            <option value="titleAsc">
+              Título A-Z
+            </option>
+          </select>
+        </div>
+
+        <div className="col-12">
+
+          <div className="form-check">
+            <input
+              id="filter-favorites"
+              className="form-check-input"
+              type="checkbox"
+              checked={
+                filters.favoritesOnly
+              }
+              onChange={(event) =>
+                setFilter(
+                  "favoritesOnly",
+                  event.target.checked
+                )
+              }
+            />
+
+            <label
+              className="form-check-label"
+              htmlFor="filter-favorites"
+            >
+              <i className="bi bi-star me-2 text-warning" />
+              Somente favoritas
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
