@@ -72,8 +72,9 @@ async function deleteNoteTree(
 export default function NotebookApp(){
  const router=useRouter(),{user,loading:authLoading,logout}=useAuth(); const [notes,setNotes]=useState<Note[]>([]),[customCats,setCustomCats]=useState<Category[]>([]),[customTags,setCustomTags]=useState<Tag[]>([]),[loading,setLoading]=useState(true),[filters,setFilters]=useState(defaults),[section,setSection]=useState<Section>("notes"),[filtersOpen,setFiltersOpen]=useState(false),[sidebar,setSidebar]=useState(false),[sidebarHover,setSidebarHover]=useState(false),[modal,setModal]=useState(false),[editing,setEditing]=useState<Note|null>(null),[saving,setSaving]=useState(false),[deleteTarget,setDeleteTarget]=useState<Note|null>(null),[busyDelete,setBusyDelete]=useState(false),[toast,setToast]=useState<{type:"success"|"danger"|"warning";text:string}|null>(null),[profile,setProfile]=useState(false),[history,setHistory]=useState<Note|null>(null),[dark,setDarkState]=useState(false);
  const legacyCleanupRef=useRef<Set<string>>(new Set());
- useEffect(()=>{const v=localStorage.getItem("caderno-theme")==="dark";setDarkState(v)},[]); useEffect(()=>{document.documentElement.setAttribute("data-bs-theme",dark?"dark":"light");document.body.style.background=dark?"#0b1220":"#f6f8fb"},[dark]); const setDark=(v:boolean)=>{setDarkState(v);localStorage.setItem("caderno-theme",v?"dark":"light")};
- useEffect(()=>{if(!authLoading&&!user)router.replace("/login")},[authLoading,user,router]);
+ useEffect(()=>{const v=localStorage.getItem("caderno-theme")==="dark";setDarkState(v)},[]);
+ const setDark=(v:boolean)=>{setDarkState(v);localStorage.setItem("caderno-theme",v?"dark":"light")};
+ useEffect(()=>{if(!authLoading&&!user)router.replace("/")},[authLoading,user,router]);
  useEffect(()=>{if(!user)return;setLoading(true);const unsub=onSnapshot(query(collection(db,"users",user.uid,"notes"),orderBy("updatedAt","desc")),s=>{setNotes(s.docs.map(d=>({id:d.id,...d.data(),tags:d.data().tags||[],checklist:d.data().checklist||[],recurrence:d.data().recurrence||"none",reminderMinutes:d.data().reminderMinutes??null,archived:false,deletedAt:d.data().deletedAt||null}) as Note));setLoading(false)},e=>{setToast({type:"danger",text:message(e)});setLoading(false)});const uc=onSnapshot(
  collection(db,"users",user.uid,"categories"),
  s=>setCustomCats(
@@ -223,7 +224,12 @@ return()=>{unsub();uc();ut()}},[user]);
  return (
   <div
    className="d-flex"
-   style={{minHeight:"100vh"}}
+   data-bs-theme={dark?"dark":"light"}
+   style={{
+    minHeight:"100vh",
+    background:dark?"#0b1220":"#f6f8fb",
+    color:dark?"#e5e7eb":"inherit",
+   }}
   >
    <ReminderManager notes={active}/>
 
@@ -317,7 +323,7 @@ return()=>{unsub();uc();ut()}},[user]);
         className="btn btn-outline-light btn-sm w-100"
         onClick={async()=>{
          await logout();
-         router.replace("/login");
+         router.replace("/");
         }}
        >
         <i className="bi bi-box-arrow-left me-2"/>
@@ -474,7 +480,7 @@ return()=>{unsub();uc();ut()}},[user]);
       title={!sidebarHover?"Sair":undefined}
       onClick={async()=>{
        await logout();
-       router.replace("/login");
+       router.replace("/");
       }}
       style={{
        justifyContent:sidebarHover
@@ -561,7 +567,7 @@ return()=>{unsub();uc();ut()}},[user]);
          className="btn btn-outline-danger d-flex align-items-center justify-content-center"
          onClick={async()=>{
           await logout();
-          router.replace("/login");
+          router.replace("/");
          }}
          title="Sair"
          aria-label="Sair"
