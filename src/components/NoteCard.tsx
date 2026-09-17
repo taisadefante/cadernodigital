@@ -12,6 +12,7 @@ import type {
 interface Props {
   note: Note;
   search: string;
+  rowIndex: number;
   tagColors: Record<string, string>;
   onEdit: (
     note: Note
@@ -383,6 +384,7 @@ async function copyText(
 export default function NoteCard({
   note,
   tagColors,
+  rowIndex,
   onEdit,
   onDelete,
   onPatch,
@@ -484,9 +486,33 @@ export default function NoteCard({
     }
   }
 
+
+  async function toggleChecklistItem(
+    itemId: string
+  ) {
+    const nextChecklist =
+      note.checklist.map(
+        (item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                done: !item.done,
+              }
+            : item
+      );
+
+    await onPatch(
+      note,
+      {
+        checklist:
+          nextChecklist,
+      }
+    );
+  }
+
   return (
     <article
-      className="px-3 px-xl-4 py-3"
+      className="px-3 px-xl-4 py-2 py-xl-3"
       role="button"
       tabIndex={0}
       onClick={() =>
@@ -509,6 +535,11 @@ export default function NoteCard({
         borderBottom:
           "1px solid var(--bs-border-color)",
 
+        boxShadow:
+          rowIndex % 2 === 0
+            ? "none"
+            : "inset 0 1px 0 rgba(255,255,255,.015)",
+
         borderLeft: `4px solid ${
           hasPriority
             ? priority.border
@@ -516,9 +547,9 @@ export default function NoteCard({
         }`,
 
         background:
-          hasPriority
-            ? priority.background
-            : "transparent",
+          rowIndex % 2 === 0
+            ? "var(--bs-body-bg)"
+            : "var(--bs-tertiary-bg)",
 
         opacity:
           note.completed
@@ -533,7 +564,7 @@ export default function NoteCard({
           "background-color .15s ease, box-shadow .15s ease",
       }}
     >
-      <div className="row gx-3 gy-3 align-items-center">
+      <div className="row gx-3 gy-2 align-items-center">
 
         {/* ANOTAÇÃO */}
         <div className="col-12 col-xl-4">
@@ -653,8 +684,128 @@ export default function NoteCard({
           )}
         </div>
 
-        {/* TAGS / PRIORIDADE */}
-        <div className="col-12 col-md-6 col-xl-2 text-xl-center">
+        {/* METADADOS COMPACTOS - MOBILE / TABLET */}
+        <div className="col-12 d-xl-none">
+          <div className="d-flex flex-column gap-2 small">
+
+            {/* TAGS + PRIORIDADE */}
+            {(hasTags || hasPriority) && (
+              <div className="d-flex flex-wrap align-items-center gap-2">
+
+                {hasTags &&
+                  note.tags.map((tag) => {
+                    const color = safeTagColor(tagColors[tag]);
+
+                    return (
+                      <span
+                        key={tag}
+                        className="badge rounded-pill border-0 px-2 py-1"
+                        style={{
+                          background: color,
+                          color: tagTextColor(color),
+                        }}
+                      >
+                        #{tag}
+                      </span>
+                    );
+                  })}
+
+                {hasPriority && (
+                  <span
+                    className="d-inline-flex align-items-center gap-1"
+                    style={{
+                      color: priority.color,
+                      fontSize: 12,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: priority.border,
+                        display: "inline-block",
+                      }}
+                    />
+                    {priority.label}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* COMPROMISSO / DATA / HORA EM LINHA PRÓPRIA */}
+            {(note.date || note.appointment) && (
+              <div className="d-flex flex-wrap align-items-center gap-1">
+                <i
+                  className={`bi ${
+                    note.appointment
+                      ? "bi-calendar-check text-primary"
+                      : "bi-calendar3 text-secondary"
+                  }`}
+                />
+
+                {note.appointment && (
+                  <span className="fw-semibold text-primary">
+                    Compromisso
+                  </span>
+                )}
+
+                {note.appointment && note.date && (
+                  <span className="text-secondary">
+                    •
+                  </span>
+                )}
+
+                {note.date && (
+                  <span className="text-body">
+                    {formatDate(note.date)}
+                    {note.time ? ` às ${note.time}` : ""}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* OUTROS DETALHES */}
+            {(hasRecurrence ||
+              hasReminder ||
+              hasChecklist ||
+              note.completed) && (
+              <div className="d-flex flex-wrap align-items-center gap-2">
+
+                {hasRecurrence && (
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <i className="bi bi-arrow-repeat text-info" />
+                    {recurrenceLabel(note.recurrence)}
+                  </span>
+                )}
+
+                {hasReminder && (
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <i className="bi bi-bell text-warning" />
+                    {reminderLabel(note.reminderMinutes!)}
+                  </span>
+                )}
+
+                {hasChecklist && (
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <i className="bi bi-check2-square text-success" />
+                    {checklistDone}/{note.checklist.length}
+                  </span>
+                )}
+
+                {note.completed && (
+                  <span className="text-success fw-semibold d-inline-flex align-items-center gap-1">
+                    <i className="bi bi-check-circle" />
+                    Concluída
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* TAGS / PRIORIDADE - DESKTOP */}
+        <div className="d-none d-xl-block col-xl-2 text-xl-center">
 
           <div className="d-flex flex-column gap-2 align-items-xl-center">
 
@@ -712,45 +863,50 @@ export default function NoteCard({
           </div>
         </div>
 
-        {/* DATA / COMPROMISSO */}
-        <div className="col-12 col-md-6 col-xl-2 text-xl-center">
+        {/* DATA / COMPROMISSO - DESKTOP */}
+        <div className="d-none d-xl-block col-xl-2 text-xl-center">
 
           <div
-            className="d-flex flex-column gap-2 align-items-xl-center"
+            className="d-flex align-items-center justify-content-center flex-wrap gap-1"
             style={{
               fontSize: 13,
             }}
           >
+            {(note.date || note.appointment) && (
+              <>
+                <i
+                  className={`bi ${
+                    note.appointment
+                      ? "bi-calendar-check text-primary"
+                      : "bi-calendar3 text-secondary"
+                  }`}
+                />
 
-            {note.date && (
-              <span>
-                <i className="bi bi-calendar3 me-1 text-secondary" />
-
-                {formatDate(
-                  note.date
+                {note.appointment && (
+                  <span className="text-primary fw-semibold">
+                    Compromisso
+                  </span>
                 )}
-              </span>
-            )}
 
-            {note.time && (
-              <span>
-                <i className="bi bi-clock me-1 text-secondary" />
+                {note.appointment && note.date && (
+                  <span className="text-secondary">
+                    •
+                  </span>
+                )}
 
-                {note.time}
-              </span>
-            )}
-
-            {note.appointment && (
-              <span className="text-primary">
-                <i className="bi bi-calendar-check me-1" />
-                Compromisso
-              </span>
+                {note.date && (
+                  <span>
+                    {formatDate(note.date)}
+                    {note.time ? ` às ${note.time}` : ""}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
 
-        {/* DETALHES */}
-        <div className="col-12 col-md-6 col-xl-2 text-xl-center">
+        {/* DETALHES - DESKTOP */}
+        <div className="d-none d-xl-block col-xl-2 text-xl-center">
 
           <div className="d-flex flex-column gap-2 small align-items-xl-center">
 
@@ -797,8 +953,61 @@ export default function NoteCard({
           </div>
         </div>
 
+        {/* CHECKLIST COMPLETO - MOBILE / TABLET */}
+        {hasChecklist && (
+          <div className="col-12 d-xl-none">
+            <div
+              className="d-flex align-items-center gap-2 flex-wrap pt-2 border-top"
+            >
+              <span className="small fw-semibold">
+                <i className="bi bi-check2-square me-1" />
+                Checklist:
+              </span>
+
+              {note.checklist.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`badge rounded-pill ${
+                    item.done
+                      ? "text-bg-success border-0"
+                      : "bg-body text-secondary border"
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void toggleChecklistItem(item.id);
+                  }}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  title={
+                    item.done
+                      ? "Marcar como pendente"
+                      : "Marcar como concluído"
+                  }
+                  style={{
+                    textDecoration: item.done
+                      ? "line-through"
+                      : "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <i
+                    className={`bi ${
+                      item.done
+                        ? "bi-check-circle-fill"
+                        : "bi-circle"
+                    } me-1`}
+                  />
+                  {item.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* AÇÕES */}
-        <div className="col-12 col-md-6 col-xl-2">
+        <div className="col-12 col-xl-2">
 
           <div
             className="d-flex justify-content-center align-items-center gap-1 flex-wrap"
@@ -981,7 +1190,7 @@ export default function NoteCard({
       </div>
 
       {hasChecklist && (
-        <div className="mt-3 pt-3 border-top">
+        <div className="d-none d-xl-block mt-3 pt-3 border-top">
 
           <div className="d-flex align-items-center gap-2 flex-wrap">
 
@@ -992,22 +1201,32 @@ export default function NoteCard({
 
             {note.checklist.map(
               (item) => (
-                <span
-                  key={
-                    item.id
-                  }
-
+                <button
+                  key={item.id}
+                  type="button"
                   className={`badge rounded-pill ${
                     item.done
-                      ? "text-bg-success"
+                      ? "text-bg-success border-0"
                       : "bg-body text-secondary border"
                   }`}
-
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void toggleChecklistItem(item.id);
+                  }}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  title={
+                    item.done
+                      ? "Marcar como pendente"
+                      : "Marcar como concluído"
+                  }
                   style={{
                     textDecoration:
                       item.done
                         ? "line-through"
                         : "none",
+                    cursor: "pointer",
                   }}
                 >
                   <i
@@ -1017,11 +1236,8 @@ export default function NoteCard({
                         : "bi-circle"
                     } me-1`}
                   />
-
-                  {
-                    item.text
-                  }
-                </span>
+                  {item.text}
+                </button>
               )
             )}
           </div>

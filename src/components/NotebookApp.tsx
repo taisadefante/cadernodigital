@@ -203,7 +203,6 @@ export default function NotebookApp(){
 
  return (
   <div
-   className="d-flex"
    data-bs-theme={dark?"dark":"light"}
    style={{
     minHeight:"100vh",
@@ -213,51 +212,137 @@ export default function NotebookApp(){
   >
    <ReminderManager notes={active}/>
 
+   {/* HEADER GLOBAL - OCUPA TODA A LARGURA */}
+   <header
+    className="border-bottom sticky-top"
+    style={{
+     zIndex:1200,
+     height:84,
+     background:"#0f172a",
+     color:"#fff",
+     borderColor:"#334155",
+     boxShadow:"0 2px 12px rgba(15,23,42,.16)",
+    }}
+   >
+    <div
+     className="container-fluid px-3 px-lg-4 h-100 d-flex align-items-center justify-content-between gap-3"
+    >
+     <div className="d-flex align-items-center gap-3">
+      <button
+       type="button"
+       className="btn btn-outline-light d-lg-none d-flex align-items-center justify-content-center"
+       onClick={()=>setSidebar(true)}
+       title="Abrir menu"
+       aria-label="Abrir menu"
+       style={{
+        width:42,
+        height:42,
+        borderRadius:12,
+       }}
+      >
+       <i className="bi bi-list fs-5"/>
+      </button>
+
+      <span
+       className="d-flex align-items-center justify-content-center flex-shrink-0"
+       style={{
+        width:44,
+        height:44,
+        borderRadius:13,
+        background:"#2563eb",
+        color:"#fff",
+       }}
+      >
+       <i className="bi bi-journal-richtext fs-5"/>
+      </span>
+
+      <div>
+       <div
+        className="fw-bold text-white"
+        style={{
+         lineHeight:1.15,
+         fontSize:16,
+        }}
+       >
+        Meu Caderno Digital
+       </div>
+
+       <small style={{color:"#94a3b8"}}>
+        {sectionTitle}
+       </small>
+      </div>
+     </div>
+
+     <div className="d-flex align-items-center gap-3">
+      <div className="d-none d-md-block text-end">
+       <div
+        className="fw-semibold text-white"
+        style={{lineHeight:1.15}}
+       >
+        {displayName}
+       </div>
+
+       <small style={{color:"#94a3b8"}}>
+        {user.email}
+       </small>
+      </div>
+
+      <button
+       type="button"
+       className="btn d-flex align-items-center justify-content-center"
+       onClick={async()=>{
+        await logout();
+        router.replace("/");
+       }}
+       title="Sair"
+       aria-label="Sair"
+       style={{
+        width:42,
+        height:42,
+        borderRadius:12,
+        color:"#f87171",
+        border:"1px solid #7f1d1d",
+        background:"rgba(127,29,29,.12)",
+       }}
+      >
+       <i className="bi bi-box-arrow-right"/>
+      </button>
+     </div>
+    </div>
+   </header>
+
+   {/* SIDEBAR + CONTEÚDO COMEÇAM ABAIXO DO HEADER */}
+   <div
+    className="d-flex"
+    style={{
+     minHeight:"calc(100vh - 84px)",
+    }}
+   >
+
    {sidebar&&(
     <>
      <div
-      className="position-fixed top-0 start-0 w-100 h-100 d-lg-none"
+      className="position-fixed start-0 w-100 d-lg-none"
       onClick={()=>setSidebar(false)}
       style={{
+       top:84,
+       height:"calc(100vh - 84px)",
        zIndex:1090,
        background:"rgba(15,23,42,.42)",
       }}
      />
 
      <aside
-      className="d-flex d-lg-none flex-column position-fixed top-0 start-0"
+      className="d-flex d-lg-none flex-column position-fixed start-0"
       style={{
        width:270,
-       height:"100vh",
+       top:84,
+       height:"calc(100vh - 84px)",
        background:"#0f172a",
        color:"white",
        zIndex:1100,
       }}
      >
-      <div className="p-4 border-bottom border-secondary-subtle">
-       <div className="d-flex gap-3 align-items-center">
-        <span
-         className="d-flex align-items-center justify-content-center"
-         style={{
-          width:45,
-          height:45,
-          borderRadius:13,
-          background:"#2563eb",
-          flexShrink:0,
-         }}
-        >
-         <i className="bi bi-journal-richtext fs-5"/>
-        </span>
-
-        <div>
-         <strong>Meu Caderno</strong>
-         <small className="d-block text-secondary">
-          Digital & organizado
-         </small>
-        </div>
-       </div>
-      </div>
-
       <nav className="p-3 flex-grow-1">
        <small className="text-uppercase text-secondary fw-semibold px-3">
         Organização
@@ -320,7 +405,8 @@ export default function NotebookApp(){
     onMouseLeave={()=>setSidebarHover(false)}
     style={{
      width:sidebarHover?270:76,
-     height:"100vh",
+     top:84,
+     height:"calc(100vh - 84px)",
      background:"#0f172a",
      color:"white",
      zIndex:1020,
@@ -332,44 +418,8 @@ export default function NotebookApp(){
       :"none",
     }}
    >
-    <div
-     className="border-bottom border-secondary-subtle d-flex align-items-center"
-     style={{
-      height:84,
-      padding:sidebarHover
-       ?"0 18px"
-       :"0 15px",
-      transition:"padding .22s ease",
-     }}
-    >
-     <span
-      className="d-flex align-items-center justify-content-center"
-      style={{
-       width:45,
-       height:45,
-       borderRadius:13,
-       background:"#2563eb",
-       flexShrink:0,
-      }}
-     >
-      <i className="bi bi-journal-richtext fs-5"/>
-     </span>
-
-     {sidebarHover&&(
-      <div
-       className="ms-3"
-       style={{whiteSpace:"nowrap"}}
-      >
-       <strong>Meu Caderno</strong>
-       <small className="d-block text-secondary">
-        Digital & organizado
-       </small>
-      </div>
-     )}
-    </div>
-
     <nav
-     className="py-3 flex-grow-1"
+     className="pt-3 pb-3 flex-grow-1"
      style={{
       paddingLeft:sidebarHover?12:10,
       paddingRight:sidebarHover?12:10,
@@ -483,87 +533,6 @@ export default function NotebookApp(){
     className="flex-grow-1"
     style={{minWidth:0}}
    >
-    {/* HEADER NOVO */}
-    <header
-     className="bg-body border-bottom sticky-top"
-     style={{
-      zIndex:1000,
-      boxShadow:"0 3px 14px rgba(15,23,42,.04)",
-     }}
-    >
-     {/* PRIMEIRA LINHA: SISTEMA + USUÁRIO */}
-     <div className="container-fluid px-3 px-lg-4 pt-3 pb-2">
-      <div
-       className="mx-auto d-flex align-items-center justify-content-between gap-3"
-       style={{width:"100%"}}
-      >
-       <div className="d-flex align-items-center gap-3">
-        <button
-         className="btn btn-light d-lg-none"
-         onClick={()=>setSidebar(true)}
-         title="Abrir menu"
-        >
-         <i className="bi bi-list fs-5"/>
-        </button>
-
-        <div
-         className="d-none d-sm-flex align-items-center justify-content-center"
-         style={{
-          width:42,
-          height:42,
-          borderRadius:13,
-          background:"#2563eb",
-          color:"#fff",
-         }}
-        >
-         <i className="bi bi-journal-richtext"/>
-        </div>
-
-        <div>
-         <div className="fw-bold">
-          Meu Caderno Digital
-         </div>
-         <small className="text-secondary">
-          {sectionTitle}
-         </small>
-        </div>
-       </div>
-
-       <div className="d-flex align-items-center gap-3">
-        <div className="d-none d-md-block text-end">
-         <div
-          className="fw-semibold"
-          style={{lineHeight:1.15}}
-         >
-          {displayName}
-         </div>
-         <small className="text-secondary">
-          {user.email}
-         </small>
-        </div>
-
-        <button
-         type="button"
-         className="btn btn-outline-danger d-flex align-items-center justify-content-center"
-         onClick={async()=>{
-          await logout();
-          router.replace("/");
-         }}
-         title="Sair"
-         aria-label="Sair"
-         style={{
-          width:42,
-          height:42,
-          borderRadius:12,
-         }}
-        >
-         <i className="bi bi-box-arrow-right"/>
-        </button>
-       </div>
-      </div>
-     </div>
-
-    </header>
 
     {/* DATA DE HOJE + PRÓXIMO COMPROMISSO */}
     <div className="container-fluid px-3 px-lg-4 pt-3">
@@ -1037,11 +1006,12 @@ export default function NotebookApp(){
            </div>
           </div>
 
-          {visible.map(note=>(
+          {visible.map((note,index)=>(
            <NoteCard
             key={note.id}
             note={note}
             search={filters.search}
+            rowIndex={index}
             tagColors={tagColors}
             onEdit={item=>{
              setEditing(item);
@@ -1082,6 +1052,8 @@ export default function NotebookApp(){
      <i className="bi bi-plus-lg fs-4"/>
     </button>
    </main>
+
+   </div>
 
    <NoteModal
     open={modal}
