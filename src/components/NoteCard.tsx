@@ -1,35 +1,20 @@
 "use client";
 
-import {
-  useState,
-} from "react";
+import { useState } from "react";
 
-import type {
-  Note,
-  NotePriority,
-} from "@/types/note";
+import type { Note, NotePriority } from "@/types/note";
 
 interface Props {
   note: Note;
   search: string;
   rowIndex: number;
   tagColors: Record<string, string>;
-  onEdit: (
-    note: Note
-  ) => void;
-  onDelete: (
-    note: Note
-  ) => void;
-  onPatch: (
-    note: Note,
-    data: Partial<Note>
-  ) => Promise<void>;
-  onPdf?: (
-    note: Note
-  ) => void;
-  onHistory: (
-    note: Note
-  ) => void;
+  onEdit: (note: Note) => void;
+  onDelete: (note: Note) => void;
+  onArchive: (note: Note) => void;
+  onPatch: (note: Note, data: Partial<Note>) => Promise<void>;
+  onPdf?: (note: Note) => void;
+  onHistory: (note: Note) => void;
 }
 
 const DEFAULT_TAG_COLOR = "#64748b";
@@ -63,76 +48,56 @@ const priorityStyle: Record<
     label: "",
     border: "#cbd5e1",
     color: "#64748b",
-    background:
-      "transparent",
+    background: "transparent",
   },
 
   low: {
     label: "Baixa",
     border: "#22c55e",
     color: "#15803d",
-    background:
-      "rgba(34,197,94,.035)",
+    background: "rgba(34,197,94,.035)",
   },
 
   medium: {
     label: "Média",
     border: "#eab308",
     color: "#a16207",
-    background:
-      "rgba(234,179,8,.04)",
+    background: "rgba(234,179,8,.04)",
   },
 
   high: {
     label: "Alta",
     border: "#f97316",
     color: "#c2410c",
-    background:
-      "rgba(249,115,22,.04)",
+    background: "rgba(249,115,22,.04)",
   },
 
   urgent: {
     label: "Urgente",
     border: "#ef4444",
     color: "#b91c1c",
-    background:
-      "rgba(239,68,68,.045)",
+    background: "rgba(239,68,68,.045)",
   },
 };
 
-function formatDate(
-  value: string
-): string {
-  const [
-    year,
-    month,
-    day,
-  ] = value.split("-");
+function formatDate(value: string): string {
+  const [year, month, day] = value.split("-");
 
   return `${day}/${month}/${year}`;
 }
 
-function recurrenceLabel(
-  value: Note["recurrence"]
-): string {
-  const labels:
-    Record<string, string> = {
-      daily:
-        "Todos os dias",
-      weekly:
-        "Toda semana",
-      monthly:
-        "Todo mês",
-      yearly:
-        "Todo ano",
-    };
+function recurrenceLabel(value: Note["recurrence"]): string {
+  const labels: Record<string, string> = {
+    daily: "Todos os dias",
+    weekly: "Toda semana",
+    monthly: "Todo mês",
+    yearly: "Todo ano",
+  };
 
   return labels[value] || "";
 }
 
-function reminderLabel(
-  value: number
-): string {
+function reminderLabel(value: number): string {
   if (value === 0) {
     return "Na hora";
   }
@@ -153,231 +118,119 @@ function reminderLabel(
     return `${value} min antes`;
   }
 
-  if (
-    value % 1440 ===
-    0
-  ) {
-    const days =
-      value / 1440;
+  if (value % 1440 === 0) {
+    const days = value / 1440;
 
-    return `${days} ${
-      days === 1
-        ? "dia"
-        : "dias"
-    } antes`;
+    return `${days} ${days === 1 ? "dia" : "dias"} antes`;
   }
 
-  if (
-    value % 60 ===
-    0
-  ) {
-    const hours =
-      value / 60;
+  if (value % 60 === 0) {
+    const hours = value / 60;
 
-    return `${hours} ${
-      hours === 1
-        ? "hora"
-        : "horas"
-    } antes`;
+    return `${hours} ${hours === 1 ? "hora" : "horas"} antes`;
   }
 
   return `${value} min antes`;
 }
 
-function buildCopyText(
-  note: Note
-): string {
-  const lines:
-    string[] = [];
+function buildCopyText(note: Note): string {
+  const lines: string[] = [];
 
-  if (
-    note.title?.trim()
-  ) {
-    lines.push(
-      `📝 ${note.title.trim()}`
-    );
+  if (note.title?.trim()) {
+    lines.push(`📝 ${note.title.trim()}`);
   }
 
-  if (
-    note.priority !==
-    "none"
-  ) {
-    lines.push(
-      `⚑ Prioridade: ${
-        priorityStyle[
-          note.priority
-        ].label
-      }`
-    );
+  if (note.priority !== "none") {
+    lines.push(`⚑ Prioridade: ${priorityStyle[note.priority].label}`);
   }
 
-  if (
-    note.tags?.length
-  ) {
-    lines.push(
-      `🏷️ ${note.tags
-        .map(
-          (tag) =>
-            `#${tag}`
-        )
-        .join(" ")}`
-    );
+  if (note.tags?.length) {
+    lines.push(`🏷️ ${note.tags.map((tag) => `#${tag}`).join(" ")}`);
   }
 
-  if (
-    note.appointment
-  ) {
-    lines.push(
-      "📌 Compromisso"
-    );
+  if (note.appointment) {
+    lines.push("📌 Compromisso");
   }
 
   if (note.date) {
     lines.push(
-      `📅 ${formatDate(
-        note.date
-      )}${
-        note.time
-          ? ` às ${note.time}`
-          : ""
-      }`
+      `📅 ${formatDate(note.date)}${note.time ? ` às ${note.time}` : ""}`,
     );
   }
 
-  if (
-    note.recurrence &&
-    note.recurrence !==
-      "none"
-  ) {
-    lines.push(
-      `🔁 ${recurrenceLabel(
-        note.recurrence
-      )}`
-    );
+  if (note.recurrence && note.recurrence !== "none") {
+    lines.push(`🔁 ${recurrenceLabel(note.recurrence)}`);
   }
 
-  if (
-    note.reminderMinutes !==
-      null &&
-    note.reminderMinutes !==
-      undefined
-  ) {
-    lines.push(
-      `🔔 ${reminderLabel(
-        note.reminderMinutes
-      )}`
-    );
+  if (note.reminderMinutes !== null && note.reminderMinutes !== undefined) {
+    lines.push(`🔔 ${reminderLabel(note.reminderMinutes)}`);
   }
 
   if (note.completed) {
-    lines.push(
-      "✅ Concluída"
-    );
+    lines.push("✅ Concluída");
   }
 
   if (note.favorite) {
-    lines.push(
-      "⭐ Favorita"
-    );
+    lines.push("⭐ Favorita");
   }
 
   if (note.pinned) {
-    lines.push(
-      "📌 Fixada no topo"
-    );
+    lines.push("📌 Fixada no topo");
   }
 
-  if (
-    note.content?.trim()
-  ) {
+  if (note.content?.trim()) {
     if (lines.length) {
       lines.push("");
     }
 
-    lines.push(
-      note.content.trim()
-    );
+    lines.push(note.content.trim());
   }
 
-  if (
-    note.checklist
-      ?.length
-  ) {
+  if (note.checklist?.length) {
     if (lines.length) {
       lines.push("");
     }
 
-    lines.push(
-      "☑️ Checklist:"
-    );
+    lines.push("☑️ Checklist:");
 
-    note.checklist.forEach(
-      (item) => {
-        lines.push(
-          `${
-            item.done
-              ? "☑"
-              : "☐"
-          } ${item.text}`
-        );
-      }
-    );
+    note.checklist.forEach((item) => {
+      lines.push(`${item.done ? "☑" : "☐"} ${item.text}`);
+    });
   }
 
   return lines.join("\n");
 }
 
-async function copyText(
-  text: string
-): Promise<void> {
-  if (
-    navigator.clipboard &&
-    window.isSecureContext
-  ) {
-    await navigator.clipboard.writeText(
-      text
-    );
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
 
     return;
   }
 
-  const textarea =
-    document.createElement(
-      "textarea"
-    );
+  const textarea = document.createElement("textarea");
 
   textarea.value = text;
 
-  textarea.style.position =
-    "fixed";
+  textarea.style.position = "fixed";
 
-  textarea.style.opacity =
-    "0";
+  textarea.style.opacity = "0";
 
-  textarea.style.pointerEvents =
-    "none";
+  textarea.style.pointerEvents = "none";
 
-  textarea.style.left =
-    "-9999px";
+  textarea.style.left = "-9999px";
 
-  document.body.appendChild(
-    textarea
-  );
+  document.body.appendChild(textarea);
 
   textarea.focus();
   textarea.select();
 
-  const copied =
-    document.execCommand(
-      "copy"
-    );
+  const copied = document.execCommand("copy");
 
   textarea.remove();
 
   if (!copied) {
-    throw new Error(
-      "Não foi possível copiar a anotação."
-    );
+    throw new Error("Não foi possível copiar a anotação.");
   }
 }
 
@@ -387,129 +240,68 @@ export default function NoteCard({
   rowIndex,
   onEdit,
   onDelete,
+  onArchive,
   onPatch,
   onHistory,
 }: Props) {
   void onHistory;
 
-  const priority =
-    priorityStyle[
-      note.priority
-    ];
+  const priority = priorityStyle[note.priority];
 
-  const [
-    copied,
-    setCopied,
-  ] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const [
-    contentExpanded,
-    setContentExpanded,
-  ] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
 
-  const checklistDone =
-    note.checklist?.filter(
-      (item) => item.done
-    ).length ?? 0;
+  const checklistDone = note.checklist?.filter((item) => item.done).length ?? 0;
 
-  const hasTitle =
-    Boolean(
-      note.title?.trim()
-    );
+  const hasTitle = Boolean(note.title?.trim());
 
-  const hasContent =
-    Boolean(
-      note.content?.trim()
-    );
+  const hasContent = Boolean(note.content?.trim());
 
-  const contentText =
-    note.content?.trim() || "";
+  const contentText = note.content?.trim() || "";
 
-  const contentLines =
-    contentText
-      ? contentText.split(/\r?\n/)
-      : [];
+  const contentLines = contentText ? contentText.split(/\r?\n/) : [];
 
-  const contentIsLong =
-    contentText.length > 180 ||
-    contentLines.length > 3;
+  const contentIsLong = contentText.length > 180 || contentLines.length > 3;
 
-  const hasPriority =
-    note.priority !==
-    "none";
+  const hasPriority = note.priority !== "none";
 
-  const hasTags =
-    Boolean(
-      note.tags?.length
-    );
+  const hasTags = Boolean(note.tags?.length);
 
-  const hasRecurrence =
-    Boolean(
-      note.recurrence &&
-      note.recurrence !==
-        "none"
-    );
+  const hasRecurrence = Boolean(note.recurrence && note.recurrence !== "none");
 
   const hasReminder =
-    note.reminderMinutes !==
-      null &&
-    note.reminderMinutes !==
-      undefined;
+    note.reminderMinutes !== null && note.reminderMinutes !== undefined;
 
-  const hasChecklist =
-    Boolean(
-      note.checklist
-        ?.length
-    );
+  const hasChecklist = Boolean(note.checklist?.length);
 
   async function handleCopy() {
     try {
-      await copyText(
-        buildCopyText(
-          note
-        )
-      );
+      await copyText(buildCopyText(note));
 
       setCopied(true);
 
-      window.setTimeout(
-        () => {
-          setCopied(
-            false
-          );
-        },
-        1800
-      );
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 1800);
     } catch (error) {
-      console.error(
-        "Erro ao copiar anotação:",
-        error
-      );
+      console.error("Erro ao copiar anotação:", error);
     }
   }
 
-
-  async function toggleChecklistItem(
-    itemId: string
-  ) {
-    const nextChecklist =
-      note.checklist.map(
-        (item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                done: !item.done,
-              }
-            : item
-      );
-
-    await onPatch(
-      note,
-      {
-        checklist:
-          nextChecklist,
-      }
+  async function toggleChecklistItem(itemId: string) {
+    const nextChecklist = note.checklist.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            done: !item.done,
+          }
+        : item,
     );
+
+    await onPatch(note, {
+      checklist: nextChecklist,
+    });
   }
 
   return (
@@ -517,82 +309,49 @@ export default function NoteCard({
       className="px-3 px-xl-4 py-2 py-xl-3"
       role="button"
       tabIndex={0}
-      onClick={() =>
-        onEdit(note)
-      }
-      onKeyDown={(
-        event
-      ) => {
-        if (
-          event.key ===
-            "Enter" ||
-          event.key === " "
-        ) {
+      onClick={() => onEdit(note)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onEdit(note);
         }
       }}
       title="Clique para abrir esta anotação"
       style={{
-        borderBottom:
-          "2px solid var(--bs-border-color)",
+        borderBottom: "2px solid var(--bs-border-color)",
 
         boxShadow:
-          rowIndex % 2 === 0
-            ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,.035)",
+          rowIndex % 2 === 0 ? "none" : "inset 0 1px 0 rgba(255,255,255,.035)",
 
-        borderLeft: `4px solid ${
-          hasPriority
-            ? priority.border
-            : "#cbd5e1"
-        }`,
+        borderLeft: `4px solid ${hasPriority ? priority.border : "#cbd5e1"}`,
 
         background:
-          rowIndex % 2 === 0
-            ? "var(--bs-body-bg)"
-            : "var(--bs-secondary-bg)",
+          rowIndex % 2 === 0 ? "var(--bs-body-bg)" : "var(--bs-secondary-bg)",
 
-        opacity:
-          note.completed
-            ? 0.78
-            : 1,
+        opacity: note.completed ? 0.78 : 1,
 
         cursor: "pointer",
 
         outline: "none",
 
-        transition:
-          "background-color .15s ease, box-shadow .15s ease",
+        transition: "background-color .15s ease, box-shadow .15s ease",
       }}
     >
       <div className="row gx-3 gy-2 align-items-center">
-
         {/* ANOTAÇÃO */}
         <div className="col-12 col-xl-4">
-
-          {(hasTitle ||
-            note.pinned ||
-            note.favorite) && (
+          {(hasTitle || note.pinned || note.favorite) && (
             <div className="d-flex align-items-center flex-wrap gap-2 mb-1">
-
               {hasTitle && (
                 <strong
                   className="text-truncate"
-                  title={
-                    note.title
-                  }
+                  title={note.title}
                   style={{
-                    maxWidth:
-                      "100%",
+                    maxWidth: "100%",
 
-                    fontSize:
-                      15,
+                    fontSize: 15,
 
-                    textDecoration:
-                      note.completed
-                        ? "line-through"
-                        : "none",
+                    textDecoration: note.completed ? "line-through" : "none",
                   }}
                 >
                   {note.title}
@@ -607,10 +366,7 @@ export default function NoteCard({
               )}
 
               {note.favorite && (
-                <i
-                  className="bi bi-star-fill text-warning"
-                  title="Favorita"
-                />
+                <i className="bi bi-star-fill text-warning" title="Favorita" />
               )}
             </div>
           )}
@@ -619,11 +375,7 @@ export default function NoteCard({
             <div>
               <div
                 className="text-secondary"
-                title={
-                  contentExpanded
-                    ? undefined
-                    : note.content
-                }
+                title={contentExpanded ? undefined : note.content}
                 style={{
                   fontSize: 13,
                   whiteSpace: "pre-wrap",
@@ -637,8 +389,7 @@ export default function NoteCard({
                     : {
                         display: "-webkit-box",
                         WebkitLineClamp: 3,
-                        WebkitBoxOrient:
-                          "vertical",
+                        WebkitBoxOrient: "vertical",
                         overflow: "hidden",
                       }),
                 }}
@@ -652,10 +403,7 @@ export default function NoteCard({
                   className="btn btn-link btn-sm p-0 mt-1 text-decoration-none fw-semibold"
                   onClick={(event) => {
                     event.stopPropagation();
-                    setContentExpanded(
-                      (current) =>
-                        !current
-                    );
+                    setContentExpanded((current) => !current);
                   }}
                   onKeyDown={(event) => {
                     event.stopPropagation();
@@ -689,11 +437,9 @@ export default function NoteCard({
         {/* METADADOS COMPACTOS - MOBILE / TABLET */}
         <div className="col-12 d-xl-none">
           <div className="d-flex flex-column gap-2 small">
-
             {/* TAGS + PRIORIDADE */}
             {(hasTags || hasPriority) && (
               <div className="d-flex flex-wrap align-items-center gap-2">
-
                 {hasTags &&
                   note.tags.map((tag) => {
                     const color = safeTagColor(tagColors[tag]);
@@ -747,15 +493,11 @@ export default function NoteCard({
                 />
 
                 {note.appointment && (
-                  <span className="fw-semibold text-primary">
-                    Compromisso
-                  </span>
+                  <span className="fw-semibold text-primary">Compromisso</span>
                 )}
 
                 {note.appointment && note.date && (
-                  <span className="text-secondary">
-                    •
-                  </span>
+                  <span className="text-secondary">•</span>
                 )}
 
                 {note.date && (
@@ -773,7 +515,6 @@ export default function NoteCard({
               hasChecklist ||
               note.completed) && (
               <div className="d-flex flex-wrap align-items-center gap-2">
-
                 {hasRecurrence && (
                   <span className="d-inline-flex align-items-center gap-1">
                     <i className="bi bi-arrow-repeat text-info" />
@@ -808,9 +549,7 @@ export default function NoteCard({
 
         {/* TAGS / PRIORIDADE - DESKTOP */}
         <div className="d-none d-xl-block col-xl-2 text-xl-center">
-
           <div className="d-flex flex-column gap-2 align-items-xl-center">
-
             {hasTags && (
               <div className="d-flex flex-wrap gap-1 justify-content-xl-center">
                 {note.tags.map((tag) => {
@@ -836,11 +575,9 @@ export default function NoteCard({
               <span
                 className="d-inline-flex align-items-center gap-1"
                 style={{
-                  color:
-                    priority.color,
+                  color: priority.color,
 
-                  fontSize:
-                    12,
+                  fontSize: 12,
                 }}
               >
                 <span
@@ -848,14 +585,11 @@ export default function NoteCard({
                     width: 7,
                     height: 7,
 
-                    borderRadius:
-                      "50%",
+                    borderRadius: "50%",
 
-                    background:
-                      priority.border,
+                    background: priority.border,
 
-                    display:
-                      "inline-block",
+                    display: "inline-block",
                   }}
                 />
 
@@ -867,7 +601,6 @@ export default function NoteCard({
 
         {/* DATA / COMPROMISSO - DESKTOP */}
         <div className="d-none d-xl-block col-xl-2 text-xl-center">
-
           <div
             className="d-flex align-items-center justify-content-center flex-wrap gap-1"
             style={{
@@ -885,15 +618,11 @@ export default function NoteCard({
                 />
 
                 {note.appointment && (
-                  <span className="text-primary fw-semibold">
-                    Compromisso
-                  </span>
+                  <span className="text-primary fw-semibold">Compromisso</span>
                 )}
 
                 {note.appointment && note.date && (
-                  <span className="text-secondary">
-                    •
-                  </span>
+                  <span className="text-secondary">•</span>
                 )}
 
                 {note.date && (
@@ -909,16 +638,12 @@ export default function NoteCard({
 
         {/* DETALHES - DESKTOP */}
         <div className="d-none d-xl-block col-xl-2 text-xl-center">
-
           <div className="d-flex flex-column gap-2 small align-items-xl-center">
-
             {hasRecurrence && (
               <span>
                 <i className="bi bi-arrow-repeat me-1 text-info" />
 
-                {recurrenceLabel(
-                  note.recurrence
-                )}
+                {recurrenceLabel(note.recurrence)}
               </span>
             )}
 
@@ -926,23 +651,14 @@ export default function NoteCard({
               <span>
                 <i className="bi bi-bell me-1 text-warning" />
 
-                {reminderLabel(
-                  note.reminderMinutes!
-                )}
+                {reminderLabel(note.reminderMinutes!)}
               </span>
             )}
 
             {hasChecklist && (
               <span>
                 <i className="bi bi-check2-square me-1 text-success" />
-
-                Checklist{" "}
-                {checklistDone}/
-                {
-                  note
-                    .checklist
-                    .length
-                }
+                Checklist {checklistDone}/{note.checklist.length}
               </span>
             )}
 
@@ -958,9 +674,7 @@ export default function NoteCard({
         {/* CHECKLIST COMPLETO - MOBILE / TABLET */}
         {hasChecklist && (
           <div className="col-12 d-xl-none">
-            <div
-              className="d-flex align-items-center gap-2 flex-wrap pt-2 border-top"
-            >
+            <div className="d-flex align-items-center gap-2 flex-wrap pt-2 border-top">
               <span className="small fw-semibold">
                 <i className="bi bi-check2-square me-1" />
                 Checklist:
@@ -983,22 +697,16 @@ export default function NoteCard({
                     event.stopPropagation();
                   }}
                   title={
-                    item.done
-                      ? "Marcar como pendente"
-                      : "Marcar como concluído"
+                    item.done ? "Marcar como pendente" : "Marcar como concluído"
                   }
                   style={{
-                    textDecoration: item.done
-                      ? "line-through"
-                      : "none",
+                    textDecoration: item.done ? "line-through" : "none",
                     cursor: "pointer",
                   }}
                 >
                   <i
                     className={`bi ${
-                      item.done
-                        ? "bi-check-circle-fill"
-                        : "bi-circle"
+                      item.done ? "bi-check-circle-fill" : "bi-circle"
                     } me-1`}
                   />
                   {item.text}
@@ -1010,45 +718,25 @@ export default function NoteCard({
 
         {/* AÇÕES */}
         <div className="col-12 col-xl-2">
-
           <div
             className="d-flex justify-content-center align-items-center gap-1 flex-wrap"
-
-            onClick={(
-              event
-            ) =>
-              event.stopPropagation()
-            }
-
-            onKeyDown={(
-              event
-            ) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
           >
             <button
               className={`btn btn-sm ${
-                note.completed
-                  ? "btn-success"
-                  : "btn-outline-success"
+                note.completed ? "btn-success" : "btn-outline-success"
               }`}
-
               onClick={() =>
-                void onPatch(
-                  note,
-                  {
-                    completed:
-                      !note.completed,
-                  }
-                )
+                void onPatch(note, {
+                  completed: !note.completed,
+                })
               }
-
               style={{
                 width: 32,
                 height: 32,
                 padding: 0,
               }}
-
               title={
                 note.completed
                   ? "Marcar como pendente"
@@ -1057,112 +745,87 @@ export default function NoteCard({
             >
               <i
                 className={`bi ${
-                  note.completed
-                    ? "bi-check-circle-fill"
-                    : "bi-check-circle"
+                  note.completed ? "bi-check-circle-fill" : "bi-check-circle"
                 }`}
               />
             </button>
 
             <button
               className={`btn btn-sm ${
-                copied
-                  ? "btn-success"
-                  : "btn-light border"
+                copied ? "btn-success" : "btn-light border"
               }`}
-
-              onClick={() =>
-                void handleCopy()
-              }
-
+              onClick={() => void handleCopy()}
               style={{
                 width: 32,
                 height: 32,
                 padding: 0,
               }}
-
-              title={
-                copied
-                  ? "Copiado!"
-                  : "Copiar"
-              }
+              title={copied ? "Copiado!" : "Copiar"}
             >
-              <i
-                className={`bi ${
-                  copied
-                    ? "bi-check2"
-                    : "bi-copy"
-                }`}
-              />
+              <i className={`bi ${copied ? "bi-check2" : "bi-copy"}`} />
             </button>
 
             <button
               className={`btn btn-sm ${
-                note.favorite
-                  ? "btn-warning"
-                  : "btn-light border"
+                note.favorite ? "btn-warning" : "btn-light border"
               }`}
-
               onClick={() =>
-                void onPatch(
-                  note,
-                  {
-                    favorite:
-                      !note.favorite,
-                  }
-                )
+                void onPatch(note, {
+                  favorite: !note.favorite,
+                })
               }
-
               style={{
                 width: 32,
                 height: 32,
                 padding: 0,
               }}
-
               title="Favorito"
             >
               <i
-                className={`bi ${
-                  note.favorite
-                    ? "bi-star-fill"
-                    : "bi-star"
-                }`}
+                className={`bi ${note.favorite ? "bi-star-fill" : "bi-star"}`}
               />
             </button>
 
             <button
               className="btn btn-sm btn-light border"
-
-              onClick={() =>
-                onEdit(note)
-              }
-
+              onClick={() => onEdit(note)}
               style={{
                 width: 32,
                 height: 32,
                 padding: 0,
               }}
-
               title="Editar"
             >
               <i className="bi bi-pencil-square" />
             </button>
 
             <button
-              className="btn btn-sm btn-outline-danger"
-
-              onClick={() =>
-                onDelete(
-                  note
-                )
-              }
-
+              className={`btn btn-sm ${
+                note.archived ? "btn-outline-primary" : "btn-light border"
+              }`}
+              onClick={() => onArchive(note)}
               style={{
                 width: 32,
                 height: 32,
                 padding: 0,
               }}
+              title={note.archived ? "Restaurar anotação" : "Arquivar anotação"}
+            >
+              <i
+                className={`bi ${
+                  note.archived ? "bi-arrow-counterclockwise" : "bi-archive"
+                }`}
+              />
+            </button>
 
+            <button
+              className="btn btn-sm btn-outline-danger"
+              onClick={() => onDelete(note)}
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+              }}
               title="Excluir definitivamente"
             >
               <i className="bi bi-trash3" />
@@ -1173,55 +836,44 @@ export default function NoteCard({
 
       {hasChecklist && (
         <div className="d-none d-xl-block mt-3 pt-3 border-top">
-
           <div className="d-flex align-items-center gap-2 flex-wrap">
-
             <span className="small fw-semibold">
               <i className="bi bi-check2-square me-1" />
               Checklist:
             </span>
 
-            {note.checklist.map(
-              (item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`badge rounded-pill ${
-                    item.done
-                      ? "text-bg-success border-0"
-                      : "bg-body text-secondary border"
-                  }`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void toggleChecklistItem(item.id);
-                  }}
-                  onKeyDown={(event) => {
-                    event.stopPropagation();
-                  }}
-                  title={
-                    item.done
-                      ? "Marcar como pendente"
-                      : "Marcar como concluído"
-                  }
-                  style={{
-                    textDecoration:
-                      item.done
-                        ? "line-through"
-                        : "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <i
-                    className={`bi ${
-                      item.done
-                        ? "bi-check-circle-fill"
-                        : "bi-circle"
-                    } me-1`}
-                  />
-                  {item.text}
-                </button>
-              )
-            )}
+            {note.checklist.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`badge rounded-pill ${
+                  item.done
+                    ? "text-bg-success border-0"
+                    : "bg-body text-secondary border"
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void toggleChecklistItem(item.id);
+                }}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                }}
+                title={
+                  item.done ? "Marcar como pendente" : "Marcar como concluído"
+                }
+                style={{
+                  textDecoration: item.done ? "line-through" : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <i
+                  className={`bi ${
+                    item.done ? "bi-check-circle-fill" : "bi-circle"
+                  } me-1`}
+                />
+                {item.text}
+              </button>
+            ))}
           </div>
         </div>
       )}
