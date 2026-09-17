@@ -1,6 +1,11 @@
 import type { Note, NoteFilters, NotePriority } from "@/types/note";
 
-export type NoteSection = "notes" | "appointments" | "favorites" | "calendar";
+export type NoteSection =
+  | "notes"
+  | "appointments"
+  | "favorites"
+  | "archived"
+  | "calendar";
 
 export function normalizeText(value: string): string {
   return value
@@ -52,6 +57,15 @@ export function filterNotes(
   return notes
     .filter((note) => {
       if (note.deletedAt) {
+        return false;
+      }
+
+      // Arquivadas aparecem somente no menu Arquivados.
+      if (section === "archived") {
+        if (!note.archived) {
+          return false;
+        }
+      } else if (note.archived) {
         return false;
       }
 
