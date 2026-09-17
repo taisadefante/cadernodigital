@@ -102,9 +102,33 @@ export default function NotebookApp(){
   return (
    <main
     className="d-flex align-items-center justify-content-center"
-    style={{minHeight:"100vh"}}
+    style={{
+     minHeight:"100vh",
+     background:"#f6f8fb",
+    }}
    >
-    <div className="spinner-border text-primary"/>
+    <style>{`
+     @keyframes cadernoSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+     }
+    `}</style>
+
+    <div
+     className="d-flex align-items-center justify-content-center"
+     style={{
+      width:64,
+      height:64,
+      borderRadius:18,
+      background:"#2563eb",
+      color:"#fff",
+      boxShadow:"0 12px 30px rgba(37,99,235,.22)",
+      animation:"cadernoSpin 1s linear infinite",
+     }}
+     aria-label="Carregando caderno"
+    >
+     <i className="bi bi-journal-richtext fs-3"/>
+    </div>
    </main>
   );
  }
@@ -833,7 +857,7 @@ export default function NotebookApp(){
 
       {section!=="calendar"&&(
        <div
-        className="w-100 mb-4"
+        className="w-100 mb-3"
        >
         <FiltersPanel
          open={filtersOpen}
@@ -844,77 +868,6 @@ export default function NotebookApp(){
         />
        </div>
       )}
-
-      <div className="row g-3 mb-4">
-       {[
-        [
-         "Anotações",
-         stats.total,
-         "bi-journal-text",
-         "#eff6ff",
-         "#2563eb",
-        ],
-        [
-         "Compromissos",
-         stats.appointments,
-         "bi-calendar-check",
-         "#f5f3ff",
-         "#7c3aed",
-        ],
-        [
-         "Para hoje",
-         stats.today,
-         "bi-sun",
-         "#fffbeb",
-         "#ca8a04",
-        ],
-        [
-         "Urgentes",
-         stats.urgent,
-         "bi-exclamation-circle",
-         "#fef2f2",
-         "#dc2626",
-        ],
-       ].map(([label,value,icon,bg,fg])=>(
-        <div
-         className="col-6 col-lg-3"
-         key={String(label)}
-        >
-         <div
-          className="bg-body d-flex gap-3 align-items-center px-3 py-3 h-100"
-          style={{
-           border:"1px solid var(--bs-border-color)",
-           borderRadius:15,
-           boxShadow:"0 3px 10px rgba(15,23,42,.025)",
-          }}
-         >
-          <span
-           className="d-flex justify-content-center align-items-center"
-           style={{
-            width:42,
-            height:42,
-            borderRadius:12,
-            background:String(bg),
-            color:String(fg),
-            flexShrink:0,
-           }}
-          >
-           <i className={`bi ${icon}`}/>
-          </span>
-
-          <div>
-           <div className="fs-4 fw-bold lh-1">
-            {String(value)}
-           </div>
-
-           <small className="text-secondary">
-            {String(label)}
-           </small>
-          </div>
-         </div>
-        </div>
-       ))}
-      </div>
 
       {section==="calendar"?(
        <CalendarView

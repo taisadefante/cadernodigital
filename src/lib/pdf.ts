@@ -12,12 +12,31 @@ type PrintableNote = Note & {
 };
 
 const priorityLabel = {
-  none: "Sem prioridade",
+  none: "",
   low: "Baixa",
   medium: "Média",
   high: "Alta",
   urgent: "Urgente",
 } as const;
+
+const priorityColor = {
+  none: "#cbd5e1",
+  low: "#22c55e",
+  medium: "#eab308",
+  high: "#f97316",
+  urgent: "#ef4444",
+} as const;
+
+const tagPalette = [
+  "#2563eb",
+  "#7c3aed",
+  "#db2777",
+  "#059669",
+  "#0891b2",
+  "#d97706",
+  "#dc2626",
+  "#4f46e5",
+];
 
 function escapeHtml(value: string): string {
   return String(value ?? "")
@@ -44,31 +63,48 @@ function preserveBreaks(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br />");
 }
 
-function renderChecklist(note: PrintableNote): string {
-  if (!note.checklist?.length) {
-    return "";
+function reminderLabel(value: number): string {
+  if (value === 0) return "Na hora";
+  if (value === 15) return "15 min antes";
+  if (value === 60) return "1 hora antes";
+  if (value === 1440) return "1 dia antes";
+
+  if (value < 60) {
+    return `${value} min antes`;
   }
 
-  const items = note.checklist
-    .map(
-      (item) => `
-        <li class="check-item">
-          <span class="check-box">${item.done ? "✓" : ""}</span>
+  if (value % 1440 === 0) {
+    const days = value / 1440;
+    return `${days} ${days === 1 ? "dia" : "dias"} antes`;
+  }
 
-          <span class="${item.done ? "check-done" : ""}">
-            ${escapeHtml(item.text)}
-          </span>
-        </li>
-      `
-    )
-    .join("");
+  if (value % 60 === 0) {
+    const hours = value / 60;
+    return `${hours} ${hours === 1 ? "hora" : "horas"} antes`;
+  }
 
-  return `
-    <div class="section">
-      <div class="section-title">Checklist</div>
-      <ul class="checklist">${items}</ul>
-    </div>
-  `;
+  return `${value} min antes`;
+}
+
+function recurrenceLabel(value: string): string {
+  const labels: Record<string, string> = {
+    daily: "Todos os dias",
+    weekly: "Toda semana",
+    monthly: "Todo mês",
+    yearly: "Todo ano",
+  };
+
+  return labels[value] || value;
+}
+
+function tagColor(tag: string): string {
+  let hash = 0;
+
+  for (let i = 0; i < tag.length; i += 1) {
+    hash = (hash * 31 + tag.charCodeAt(i)) >>> 0;
+  }
+
+  return tagPalette[hash % tagPalette.length];
 }
 
 function renderTags(note: PrintableNote): string {
@@ -77,71 +113,204 @@ function renderTags(note: PrintableNote): string {
   }
 
   return `
-    <div class="tags">
+    <div class="tags-inline">
       ${note.tags
-        .map((tag) => `<span class="tag">#${escapeHtml(tag)}</span>`)
+        .map(
+          (tag) => `
+            <span
+              class="tag"
+              style="background:${tagColor(tag)}"
+            >
+              #${escapeHtml(tag)}
+            </span>
+          `
+        )
         .join("")}
     </div>
   `;
 }
 
-function renderNote(note: PrintableNote, index: number): string {
-  const priority =
-    priorityLabel[note.priority as keyof typeof priorityLabel] ??
-    "Sem prioridade";
+function renderPriority(note: PrintableNote): string {
+  if (!note.priority || note.priority === "none") {
+    return "";
+  }
 
-  const meta: string[] = [
-    `<span><strong>Prioridade:</strong> ${escapeHtml(priority)}</span>`,
-    `<span><strong>Categoria:</strong> ${escapeHtml(
-      note.category || "Geral"
-    )}</span>`,
-  ];
+  const label =
+    priorityLabel[note.priority as keyof typeof priorityLabel] || "";
 
-  if (note.date) {
-    meta.push(
-      `<span><strong>Data:</strong> ${escapeHtml(brDate(note.date))}${
-        note.time ? ` às ${escapeHtml(note.time)}` : ""
-      }</span>`
+  const color =
+    priorityColor[note.priority as keyof typeof priorityColor] || "#cbd5e1";
+
+  return `
+    <div class="priority">
+      <span
+        class="priority-dot"
+        style="background:${color}"
+      ></span>
+      <span>${escapeHtml(label)}</span>
+    </div>
+  `;
+}
+
+function renderDate(note: PrintableNote): string {
+  if (!note.date && !note.appointment) {
+    return "";
+  }
+
+  return `
+    <div class="date-group">
+      ${
+        note.appointment
+          ? `<span class="appointment">Compromisso</span>`
+          : ""
+      }
+
+      ${
+        note.date
+          ? `<span class="date-text">
+              ${escapeHtml(brDate(note.date))}
+              ${note.time ? ` às ${escapeHtml(note.time)}` : ""}
+            </span>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderDetails(note: PrintableNote): string {
+  const items: string[] = [];
+
+  if (note.recurrence && note.recurrence !== "none") {
+    items.push(
+      `<span>${escapeHtml(recurrenceLabel(note.recurrence))}</span>`
+    );
+  }
+
+  if (
+    note.reminderMinutes !== null &&
+    note.reminderMinutes !== undefined
+  ) {
+    items.push(
+      `<span class="reminder">${escapeHtml(
+        reminderLabel(note.reminderMinutes)
+      )}</span>`
+    );
+  }
+
+  if (note.checklist?.length) {
+    const done = note.checklist.filter((item) => item.done).length;
+
+    items.push(
+      `<span class="check-progress">Checklist ${done}/${note.checklist.length}</span>`
     );
   }
 
   if (note.completed) {
-    meta.push(`<span><strong>Status:</strong> Concluída</span>`);
+    items.push(`<span class="completed">Concluída</span>`);
   }
 
-  if (note.pinned) {
-    meta.push(`<span><strong>Fixada:</strong> Sim</span>`);
+  if (!items.length) {
+    return "";
   }
 
-  if (note.favorite) {
-    meta.push(`<span><strong>Favorita:</strong> Sim</span>`);
+  return `<div class="details">${items.join("")}</div>`;
+}
+
+function renderChecklist(note: PrintableNote): string {
+  if (!note.checklist?.length) {
+    return "";
   }
 
   return `
-    <article class="note">
-      <div class="note-number">${index + 1}</div>
+    <div class="checklist-row">
+      <strong class="checklist-label">Checklist:</strong>
 
-      <div class="note-content">
-        <h2>${escapeHtml(note.title || "Sem título")}</h2>
+      <div class="checklist-items">
+        ${note.checklist
+          .map(
+            (item) => `
+              <span class="check-chip ${item.done ? "done" : ""}">
+                <span class="check-circle">${item.done ? "✓" : ""}</span>
+                ${escapeHtml(item.text)}
+              </span>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
 
-        <div class="meta">
-          ${meta.join("")}
+function renderNote(note: PrintableNote, index: number): string {
+  const borderColor =
+    priorityColor[note.priority as keyof typeof priorityColor] ||
+    "#cbd5e1";
+
+  const title = note.title?.trim() || "Sem título";
+  const content = note.content?.trim() || "";
+
+  const contentLines = content
+    ? content.split(/\r?\n/)
+    : [];
+
+  const isLongContent =
+    content.length > 180 ||
+    contentLines.length > 3;
+
+  return `
+    <article
+      class="note-row ${index % 2 === 0 ? "row-even" : "row-odd"}"
+      style="border-left-color:${borderColor}"
+    >
+      <div class="note-grid">
+        <div class="cell annotation-cell">
+          <div class="title-line">
+            <strong>${escapeHtml(title)}</strong>
+
+            ${note.pinned ? `<span class="pin">◆</span>` : ""}
+            ${note.favorite ? `<span class="favorite">★</span>` : ""}
+          </div>
+
+          ${
+            content && !isLongContent
+              ? `<div class="note-text">${preserveBreaks(content)}</div>`
+              : ""
+          }
         </div>
 
-        ${
-          note.content
-            ? `<div class="body-text">${preserveBreaks(note.content)}</div>`
-            : ""
-        }
+        <div class="cell tag-priority-cell">
+          ${renderTags(note)}
+          ${renderPriority(note)}
+        </div>
 
-        ${renderTags(note)}
-        ${renderChecklist(note)}
+        <div class="cell date-cell">
+          ${renderDate(note)}
+        </div>
+
+        <div class="cell details-cell">
+          ${renderDetails(note)}
+        </div>
       </div>
+
+      ${
+        content && isLongContent
+          ? `
+            <div class="full-note-text">
+              ${preserveBreaks(content)}
+            </div>
+          `
+          : ""
+      }
+
+      ${renderChecklist(note)}
     </article>
   `;
 }
 
-function createPrintDocument(notes: PrintableNote[], title: string): string {
+function createPrintDocument(
+  notes: PrintableNote[],
+  title: string
+): string {
   const generatedAt = new Date().toLocaleString("pt-BR");
 
   return `<!DOCTYPE html>
@@ -166,7 +335,7 @@ function createPrintDocument(notes: PrintableNote[], title: string): string {
       margin: 0;
       padding: 0;
       background: #ffffff;
-      color: #172033;
+      color: #1f2937;
       font-family:
         -apple-system,
         BlinkMacSystemFont,
@@ -177,169 +346,303 @@ function createPrintDocument(notes: PrintableNote[], title: string): string {
     }
 
     body {
-      padding: 14mm;
-      font-size: 10.5pt;
-      line-height: 1.5;
+      font-size: 8.4pt;
+      line-height: 1.3;
     }
 
     .document-header {
-      margin-bottom: 10mm;
-      padding-bottom: 5mm;
-      border-bottom: 2px solid #1d4ed8;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 8mm;
+      margin-bottom: 4mm;
+      padding-bottom: 3mm;
+      border-bottom: 1.5px solid #0f172a;
     }
 
-    .document-header h1 {
-      margin: 0 0 2mm;
-      font-size: 21pt;
-      line-height: 1.15;
+    .document-title h1 {
+      margin: 0;
       color: #0f172a;
+      font-size: 17pt;
+      line-height: 1.1;
     }
 
     .document-subtitle {
+      margin-top: 1mm;
       color: #64748b;
-      font-size: 9pt;
+      font-size: 7.5pt;
     }
 
-    .note {
-      display: flex;
-      gap: 4mm;
-      position: relative;
-      margin: 0 0 7mm;
-      padding: 5mm;
-      border: 1px solid #dbe2ea;
-      border-left: 4px solid #2563eb;
-      border-radius: 3mm;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      background: #ffffff;
-    }
-
-    .note-number {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-      width: 8mm;
-      height: 8mm;
-      border-radius: 50%;
+    .count {
+      padding: 1.3mm 3mm;
+      border-radius: 999px;
       background: #eff6ff;
       color: #1d4ed8;
-      font-size: 9pt;
+      font-size: 7.5pt;
       font-weight: 700;
     }
 
-    .note-content {
+    .list {
+      width: 100%;
+      border: 1px solid #dbe2ea;
+      border-radius: 2.5mm;
+      overflow: hidden;
+    }
+
+    .list-header {
+      display: grid;
+      grid-template-columns: 42% 18% 18% 22%;
+      align-items: center;
+      min-height: 8mm;
+      padding: 0 3mm;
+      background: #e2e8f0;
+      border-bottom: 2px solid #94a3b8;
+      color: #64748b;
+      font-size: 6.8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .list-header > div:not(:first-child) {
+      text-align: center;
+    }
+
+    .note-row {
+      border-left: 3.5px solid #cbd5e1;
+      border-bottom: 2px solid #cbd5e1;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .note-row:last-child {
+      border-bottom: 0;
+    }
+
+    .row-even {
+      background: #ffffff;
+    }
+
+    .row-odd {
+      background: #eef2f7;
+    }
+
+    .note-grid {
+      display: grid;
+      grid-template-columns: 42% 18% 18% 22%;
+      align-items: start;
+      min-height: 15mm;
+    }
+
+    .cell {
       min-width: 0;
-      flex: 1;
+      padding: 3mm;
     }
 
-    h2 {
-      margin: 0 0 2.5mm;
-      color: #0f172a;
-      font-size: 15pt;
-      line-height: 1.25;
-    }
-
-    .meta {
+    .tag-priority-cell,
+    .date-cell,
+    .details-cell {
       display: flex;
-      flex-wrap: wrap;
-      gap: 2mm 5mm;
-      margin-bottom: 3.5mm;
-      color: #475569;
-      font-size: 8.8pt;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5mm;
+      text-align: center;
     }
 
-    .body-text {
-      margin: 0;
-      color: #1e293b;
+    .title-line {
+      display: flex;
+      align-items: center;
+      gap: 1.5mm;
+      min-width: 0;
+      color: #0f172a;
+      font-size: 9.5pt;
+    }
+
+    .title-line strong {
       overflow-wrap: anywhere;
     }
 
-    .tags {
+    .pin {
+      color: #2563eb;
+      font-size: 7pt;
+    }
+
+    .favorite {
+      color: #eab308;
+      font-size: 9pt;
+    }
+
+    .note-text {
+      margin-top: 1.5mm;
+      color: #64748b;
+      font-size: 7.8pt;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .full-note-text {
+      width: auto;
+      margin: 0 3mm 2.5mm 3mm;
+      padding: 2.5mm 3mm;
+      border-top: 1px dashed #dbe2ea;
+      color: #334155;
+      font-size: 8pt;
+      line-height: 1.42;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      background: rgba(255,255,255,.38);
+    }
+
+    .tags-inline {
       display: flex;
+      justify-content: center;
       flex-wrap: wrap;
-      gap: 1.5mm;
-      margin-top: 4mm;
+      gap: 1mm;
     }
 
     .tag {
       display: inline-block;
-      padding: 1mm 2.4mm;
-      border: 1px solid #cbd5e1;
+      padding: .6mm 1.8mm;
       border-radius: 999px;
-      color: #475569;
-      font-size: 8pt;
-      background: #f8fafc;
-    }
-
-    .section {
-      margin-top: 4mm;
-    }
-
-    .section-title {
-      margin-bottom: 2mm;
+      color: #ffffff;
+      font-size: 6.6pt;
       font-weight: 700;
+    }
+
+    .priority {
+      display: inline-flex;
+      align-items: center;
+      gap: 1mm;
+      color: #64748b;
+      font-size: 7.2pt;
+    }
+
+    .priority-dot {
+      display: inline-block;
+      width: 1.6mm;
+      height: 1.6mm;
+      border-radius: 50%;
+    }
+
+    .date-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1mm;
+      font-size: 7.3pt;
+    }
+
+    .appointment {
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    .date-text {
       color: #334155;
     }
 
-    .checklist {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .check-item {
+    .details {
       display: flex;
-      gap: 2mm;
-      align-items: flex-start;
-      margin-bottom: 1.5mm;
+      flex-direction: column;
+      align-items: center;
+      gap: 1mm;
+      color: #475569;
+      font-size: 7.2pt;
     }
 
-    .check-box {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-      width: 4.5mm;
-      height: 4.5mm;
-      border: 1px solid #94a3b8;
-      border-radius: 1mm;
-      font-size: 8pt;
+    .reminder {
+      color: #a16207;
+    }
+
+    .check-progress {
+      color: #15803d;
+    }
+
+    .completed {
+      color: #15803d;
       font-weight: 700;
     }
 
-    .check-done {
-      text-decoration: line-through;
-      color: #64748b;
+    .checklist-row {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+      padding: 2mm 3mm 2.5mm;
+      margin-left: 3mm;
+      border-top: 1px dashed #dbe2ea;
     }
 
-    .footer-info {
-      margin-top: 8mm;
-      padding-top: 4mm;
+    .checklist-label {
+      flex: 0 0 auto;
+      color: #475569;
+      font-size: 7pt;
+    }
+
+    .checklist-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1mm;
+    }
+
+    .check-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .8mm;
+      padding: .6mm 1.7mm;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #64748b;
+      font-size: 6.6pt;
+    }
+
+    .check-chip.done {
+      border-color: #86efac;
+      background: #dcfce7;
+      color: #166534;
+      text-decoration: line-through;
+    }
+
+    .check-circle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3mm;
+      height: 3mm;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      font-size: 5.5pt;
+      line-height: 1;
+    }
+
+    .footer {
+      margin-top: 4mm;
+      padding-top: 2mm;
       border-top: 1px solid #e2e8f0;
       color: #94a3b8;
-      font-size: 8pt;
       text-align: center;
+      font-size: 6.5pt;
     }
 
     @page {
       size: A4 portrait;
-      margin: 12mm;
+      margin: 9mm 10mm;
     }
 
     @media print {
       html,
       body {
         width: 100%;
-        background: white !important;
+        background: #ffffff !important;
       }
 
-      body {
-        padding: 0;
-      }
-
-      .note {
-        box-shadow: none;
+      .row-odd,
+      .row-even,
+      .tag,
+      .count,
+      .check-chip,
+      .priority-dot {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     }
   </style>
@@ -347,18 +650,31 @@ function createPrintDocument(notes: PrintableNote[], title: string): string {
 
 <body>
   <header class="document-header">
-    <h1>${escapeHtml(title)}</h1>
+    <div class="document-title">
+      <h1>${escapeHtml(title)}</h1>
 
-    <div class="document-subtitle">
-      ${notes.length} anotação(ões) • Gerado em ${escapeHtml(generatedAt)}
+      <div class="document-subtitle">
+        Gerado em ${escapeHtml(generatedAt)}
+      </div>
+    </div>
+
+    <div class="count">
+      ${notes.length} ${notes.length === 1 ? "anotação" : "anotações"}
     </div>
   </header>
 
-  <main>
+  <main class="list">
+    <div class="list-header">
+      <div>Anotação</div>
+      <div>Tags / Prioridade</div>
+      <div>Data</div>
+      <div>Detalhes</div>
+    </div>
+
     ${notes.map((note, index) => renderNote(note, index)).join("")}
   </main>
 
-  <footer class="footer-info">
+  <footer class="footer">
     Meu Caderno Digital
   </footer>
 </body>
@@ -377,7 +693,10 @@ export async function exportNotesToPdf(
   notes: Note[],
   title = "Meu Caderno Digital"
 ): Promise<void> {
-  if (typeof window === "undefined" || typeof document === "undefined") {
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined"
+  ) {
     throw new Error(
       "A impressão só pode ser executada no navegador."
     );
@@ -392,7 +711,6 @@ export async function exportNotesToPdf(
   const iframe = document.createElement("iframe");
 
   iframe.id = "caderno-print-frame";
-
   iframe.setAttribute("aria-hidden", "true");
 
   Object.assign(iframe.style, {
@@ -423,11 +741,9 @@ export async function exportNotesToPdf(
   const printableNotes = notes as PrintableNote[];
 
   iframeDocument.open();
-
   iframeDocument.write(
     createPrintDocument(printableNotes, title)
   );
-
   iframeDocument.close();
 
   const cleanup = () => {
@@ -444,7 +760,6 @@ export async function exportNotesToPdf(
     { once: true }
   );
 
-  // Dá tempo para o navegador montar o documento dentro do iframe.
   window.setTimeout(() => {
     try {
       iframeWindow.focus();
@@ -459,7 +774,6 @@ export async function exportNotesToPdf(
     }
   }, 300);
 
-  // Fallback de limpeza caso o navegador não dispare afterprint.
   window.setTimeout(() => {
     if (iframe.parentNode) {
       iframe.remove();

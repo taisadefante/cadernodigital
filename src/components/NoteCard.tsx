@@ -390,6 +390,8 @@ export default function NoteCard({
   onPatch,
   onHistory,
 }: Props) {
+  void onHistory;
+
   const priority =
     priorityStyle[
       note.priority
@@ -533,12 +535,12 @@ export default function NoteCard({
       title="Clique para abrir esta anotação"
       style={{
         borderBottom:
-          "1px solid var(--bs-border-color)",
+          "2px solid var(--bs-border-color)",
 
         boxShadow:
           rowIndex % 2 === 0
             ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,.015)",
+            : "inset 0 1px 0 rgba(255,255,255,.035)",
 
         borderLeft: `4px solid ${
           hasPriority
@@ -549,7 +551,7 @@ export default function NoteCard({
         background:
           rowIndex % 2 === 0
             ? "var(--bs-body-bg)"
-            : "var(--bs-tertiary-bg)",
+            : "var(--bs-secondary-bg)",
 
         opacity:
           note.completed
@@ -1092,26 +1094,6 @@ export default function NoteCard({
                     : "bi-copy"
                 }`}
               />
-            </button>
-
-            <button
-              className="btn btn-sm btn-light border"
-
-              onClick={() =>
-                onHistory(
-                  note
-                )
-              }
-
-              style={{
-                width: 32,
-                height: 32,
-                padding: 0,
-              }}
-
-              title="Histórico"
-            >
-              <i className="bi bi-clock-history" />
             </button>
 
             <button
